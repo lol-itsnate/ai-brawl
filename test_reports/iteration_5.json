@@ -1,0 +1,37 @@
+{
+  "summary": "AI BRAWL Phase F2 (engine passives/specials + Fighter Forge UI + persistence) end-to-end verification. Backend 6/6 pytest pass (test_backend.py + new test_forge.py). Frontend Playwright verified: (A) default regression VOLT vs TITAN — game-canvas renders, HUD shows VOLT/TITAN, J/K/L work, VOLT special L transitions READY→3.8s (5s CD as expected); (B) Forge full flow — /forge screen loads, generate btn disabled empty→enabled on input, forge-loading shown, forge-result-card renders with forge-card-name/desc/stats/passive/special/test/save all present, backend returns forged name BLOODVEIL / GRAILBOLT / LIFESTEAL (none of VOLT/TITAN/WRAITH); (C) SAVE persists — card appears in BOTH player-roster and ai-roster with FORGED tag, survives page reload (localStorage aibrawl.forge.roster.v1); (D) two-step delete — 1st click flips × to '?', 2nd click removes card immediately; auto-revert restores × after 2.5s; (E) generated fighter combat — GRAILBOLT vs TITAN launches, player-hud-name shows generated name, L activates special (READY→4.8s cooldown), player-hud-shield DOM node present for shield buff; (F) small-viewport gate under 760px shows data-testid=small-viewport; (G) pause on tab blur — after document.hidden=true + visibilitychange, HP fill remains 100% (no leak). Controls modal opens on select screen; FIGHT button correctly gated when either side unpicked.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "SelectScreen.GeneratedCard",
+        "issue": "Invalid HTML: a <button class='brawl-card-delete-btn'> is rendered as a descendant of the outer <button class='brawl-card'>. React logs a hydration/nesting error in the console every render of a forged card. Functionally works (stopPropagation prevents double-fire) but violates HTML spec and pollutes console. Recommend refactor: make the outer card a <div role='button' tabindex='0'> or move the delete button outside the card and absolute-position it as a sibling.",
+        "selector": "[data-testid^='player-roster-'][data-testid$='-delete']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backend.py",
+    "/app/backend/tests/test_forge.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix nested-button HTML in SelectScreen.GeneratedCard (delete <button> nested inside card <button>) — currently emits a React hydration/nesting warning on every mount of a forged card. Not a regression blocker but should be cleaned up."
+  ],
+  "critical_code_review_comments": [
+    "SelectScreen.jsx line 189/200: nested <button> inside <button> — invalid HTML5 and produces persistent React console errors. See action_items.",
+    "Stun chain-lock guard (STUN_IMMUNITY_S=1.5) is engine-level logic in fighter.js — not empirically retested due to LLM stochasticity of forging TWO stun-special fighters within a reasonable retry budget. Code path exists as spec'd; recommend main-agent-side unit-level assertion if guaranteed coverage needed.",
+    "Mirror match with generated fighter (same id both sides) was not explicitly clicked through, but the SelectScreen exposes the same card id in both player-roster and ai-roster (confirmed) and the engine derives a per-side clone; no code path indicates it would fail. Low risk.",
+    "Pause-on-blur was verified only during the initial 'FIGHT!' banner window (still 100% HP both sides); the guard clearly did not desync but a longer in-fight blur test would strengthen the assertion. Acceptable given prior iterations covered this."
+  ],
+  "updated_files": ["/app/backend/tests/test_forge.py"],
+  "success_rate": {"backend": "100%", "frontend": "~95%"},
+  "seed_data_creation": "None (localStorage roster cleared at start of each test block; forged fighters BLOODVEIL/GRAILBOLT/LIFESTEAL persist per-run only).",
+  "test_credentials": "None — public app.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Correct roster localStorage key is 'aibrawl.forge.roster.v1' (NOT brawl.roster.v1). Use it to read/write forged fighter ids. Buff HUD testids (player-hud-shield/boost/stun and ai-hud-*) are conditionally rendered — presence in DOM implies buff is active; don't treat absence as failure. Forge is stochastic; retry generate up to 3× if you need a specific special-type. Small-viewport gate triggers at <760px and short-circuits before select-screen mounts. Stun chain-lock immunity guard was NOT empirically triggered this run (would require two forged fighters both with SpecialType.STUN — flaky to reproduce)."
+}

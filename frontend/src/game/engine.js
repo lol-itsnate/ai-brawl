@@ -6,15 +6,16 @@ import { InputManager } from './input.js';
 import { renderScene } from './renderer.js';
 import { ParticleSystem } from './particles.js';
 import { DamageNumbers } from './damageNumbers.js';
+import { Projectile } from './projectile.js';
 
 // Fight lifecycle timings
-const INTRO_DURATION = 1.8;   // "READY" (~1.0s) then "FIGHT!" (~0.8s)
-const KO_DURATION    = 0.75;  // brief slow-mo before result overlay
+const INTRO_DURATION = 1.8;
+const KO_DURATION    = 0.75;
 
 // Hit-stop (freeze-frame) durations
-const FREEZE_HEAVY_HIT   = 0.075; // 75ms
-const FREEZE_SPECIAL_HIT = 0.090; // 90ms
-const FREEZE_BLOCKED_HVY = 0.040; // 40ms — shorter for blocked heavies
+const FREEZE_HEAVY_HIT   = 0.075;
+const FREEZE_SPECIAL_HIT = 0.090;
+const FREEZE_BLOCKED_HVY = 0.040;
 
 function rectsOverlap(a, b) {
   return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
@@ -31,10 +32,11 @@ export class GameEngine {
     this.input = new InputManager();
     this.particles = new ParticleSystem();
     this.damageNumbers = new DamageNumbers();
+    this.projectiles = [];
 
     this.running = false;
-    this.paused = false;             // external pause (controls overlay)
-    this._backgroundPaused = false;  // tab-blur pause
+    this.paused = false;
+    this._backgroundPaused = false;
     this._raf = null;
     this._lastTime = 0;
     this._visHandler = null;
@@ -43,7 +45,7 @@ export class GameEngine {
     this.shakeT = 0;
     this.shakeMag = 0;
     this.koFlashT = 0;
-    this.freezeT = 0;           // hit-stop freeze counter (real seconds)
+    this.freezeT = 0;
 
     this._buildMatch();
   }
@@ -61,20 +63,16 @@ export class GameEngine {
     this.aiCtrl = new AIController(0xC0FFEE);
     this.time = ROUND.timeLimit;
 
-    // Phase model:
-    //   'intro'  → showing READY/FIGHT!, neither side can act
-    //   'active' → normal simulation
-    //   'ko'     → brief slow-mo + flash after match-end trigger
-    //   'ended'  → frozen scene, result overlay shown
     this.phase = 'intro';
-    this.status = null;              // 'win' | 'lose' | 'draw' | null
-    this.koCause = null;             // 'ko' | 'timeup' | null — reason match ended
+    this.status = null;
+    this.koCause = null;
     this.introT = INTRO_DURATION;
     this.koT = 0;
     this.pendingStatus = null;
 
     this.particles.parts.length = 0;
     this.damageNumbers.reset();
+    this.projectiles.length = 0;
     this.shakeT = 0;
     this.shakeMag = 0;
     this.koFlashT = 0;
@@ -91,23 +89,23 @@ export class GameEngine {
       status: this.status,
       koCause: this.koCause,
       time: this.time,
-      player: {
-        name: this.player.char.name,
-        id: this.player.char.id,
-        hp: this.player.hp,
-        maxHp: this.player.maxHp,
-        specialCd: this.player.cooldowns.special,
-        specialMax: this.player.char.special.cooldown,
-      },
-      ai: {
-        name: this.ai.char.name,
-        id: this.ai.char.id,
-        hp: this.ai.hp,
-        maxHp: this.ai.maxHp,
-        specialCd: this.ai.cooldowns.special,
-        specialMax: this.ai.char.special.cooldown,
-      },
+      player: this._hudFor(this.player),
+      ai:     this._hudFor(this.ai),
     });
+  }
+
+  _hudFor(f) {
+    return {
+      name: f.char.name,
+      id: f.char.id,
+      hp: f.hp,
+      maxHp: f.maxHp,
+      specialCd: f.cooldowns.special,
+      specialMax: f.char.special.cooldown,
+      shieldHp: f.shieldHp,
+      dmgBoostT: f.dmgBoostT,
+      stunT: f.stunT,
+    };
   }
 
   start() {
@@ -142,13 +140,8 @@ export class GameEngine {
     const val = !!v;
     if (val === this.paused) return;
     this.paused = val;
-    if (val) {
-      // Drop held keys so releasing them off-focus doesn't fire on resume
-      this.input.clear();
-    } else {
-      // Prevent dt spike on resume
-      this._lastTime = performance.now();
-    }
+    if (val) this.input.clear();
+    else     this._lastTime = performance.now();
     this._pushEvent();
   }
 
@@ -161,21 +154,15 @@ export class GameEngine {
     if (this._backgroundPaused || this.paused) dt = 0;
     if (dt > 0.05) dt = 0.05;
 
-    // Global timers (shake, flash, hit-stop freeze) tick regardless of phase.
-    // These use real dt so shake still "vibrates" during hit-stop for a punchy impact feel.
     if (this.shakeT > 0)   this.shakeT   = Math.max(0, this.shakeT - dt);
     if (this.koFlashT > 0) this.koFlashT = Math.max(0, this.koFlashT - dt);
     if (this.freezeT > 0)  this.freezeT  = Math.max(0, this.freezeT - dt);
 
-    // Simulation dt: frozen to 0 during a hit-stop window (freeze-frame)
     const simDt = this.freezeT > 0 ? 0 : dt;
 
     if (this.phase === 'intro') {
       this.introT -= dt;
-      if (this.introT <= 0) {
-        this.introT = 0;
-        this.phase = 'active';
-      }
+      if (this.introT <= 0) { this.introT = 0; this.phase = 'active'; }
       this.particles.update(dt);
       this.damageNumbers.update(dt);
     } else if (this.phase === 'active') {
@@ -183,8 +170,6 @@ export class GameEngine {
       this.particles.update(simDt);
       this.damageNumbers.update(simDt);
     } else if (this.phase === 'ko') {
-      // Slow-mo: entities keep resolving knockback + reactions at reduced speed.
-      // If a hit-stop is active, sim is fully frozen this frame.
       const slow = 0.35;
       const koDt = simDt * slow;
       this._stepEntities(koDt);
@@ -219,26 +204,112 @@ export class GameEngine {
     };
   }
 
-  // Entity + combat step (no timer, no phase transitions). Used by 'active' and 'ko'.
   _stepEntities(dt) {
     const pIntent = this._readPlayerIntent();
     const aIntent = this.aiCtrl.update(dt, this.ai, this.player);
-    // Track ground state before update so we can detect landing events
     const pWasAir = !this.player.onGround;
     const aWasAir = !this.ai.onGround;
     this.player.update(dt, this.ai, pIntent);
     this.ai.update(dt, this.player, aIntent);
+
+    // Special activation hooks: fires ONCE per attack when startup→active transition happens.
+    // Fighter.update sets attack.needsActivation on the transition frame; we clear it here.
+    for (const [self, other] of [[this.player, this.ai], [this.ai, this.player]]) {
+      if (self.attack?.needsActivation) {
+        self.attack.needsActivation = false;
+        this._onSpecialActivate(self, other);
+      }
+    }
+
     if (pWasAir && this.player.onGround) this._onLanded(this.player);
     if (aWasAir && this.ai.onGround)     this._onLanded(this.ai);
-    // Per-frame special FX emissions (dash sparks, teleport wisps, slam dust)
+
     this._emitSpecialFxParticles(this.player);
     this._emitSpecialFxParticles(this.ai);
     this._resolveOverlap(this.player, this.ai);
-    this._resolveAttack(this.player, this.ai, /*aiOwnsAttack*/ false);
-    this._resolveAttack(this.ai, this.player, /*aiOwnsAttack*/ true);
+    this._resolveAttack(this.player, this.ai, false);
+    this._resolveAttack(this.ai, this.player, true);
+    this._updateProjectiles(dt);
   }
 
-  // TITAN's slam landing: big shockwave + dust + heavy shake.
+  // Fires once when a fighter's special enters the 'active' phase.
+  // Handles all effect-based specials: projectile spawn, self-buff (shield/heal/damage_boost).
+  // Motion-based specials (dash/teleport/slam) do their setup in Fighter._onSpecialStart.
+  _onSpecialActivate(self, opponent) {
+    if (!self.attack || self.attack.type !== 'special') return;
+    const s = self.char.special;
+    switch (s.kind) {
+      case 'projectile': {
+        const spd = (s.projSpeed || 620) * self.facing;
+        const proj = new Projectile({
+          owner: self,
+          x: self.x + self.facing * (self.width / 2 + 6),
+          y: self.y - self.height * 0.55,
+          vx: spd,
+          damage: s.damage,
+          def: s,
+          radius: s.projRadius || 22,
+          life: s.projLife || 1.2,
+          color: self.char.trail || self.char.color,
+          secondary: self.char.accent || '#ffffff',
+        });
+        this.projectiles.push(proj);
+        this.particles.emit(proj.x, proj.y, {
+          count: 14, color: proj.color, speed: 240, spread: 1.0,
+          gravity: -40, life: 0.35, size: 4,
+        });
+        this.shakeT = Math.max(this.shakeT, 0.08);
+        this.shakeMag = Math.max(this.shakeMag, 4);
+        break;
+      }
+      case 'shield': {
+        self.addShield(s.shieldAmount || 30, s.shieldDuration || 3.0);
+        this.particles.emit(self.x, self.y - self.height / 2, {
+          count: 26, color: '#8fd7ff', speed: 240, spread: 1.0,
+          gravity: -60, life: 0.6, size: 5,
+        });
+        break;
+      }
+      case 'heal': {
+        self.heal(s.damage);        // reuse `damage` as heal magnitude (server enforces range)
+        this.particles.emit(self.x, self.y - self.height / 2, {
+          count: 24, color: '#7fff9a', speed: 200, spread: 1.0,
+          gravity: -160, life: 0.7, size: 4,
+        });
+        this.particles.emit(self.x, self.y - self.height / 2, {
+          count: 10, color: '#ffffff', speed: 120, spread: 1.0,
+          gravity: -100, life: 0.5, size: 3,
+        });
+        break;
+      }
+      case 'damage_boost': {
+        self.addDamageBoost(s.boostMult || 1.5, s.boostDuration || 4.0);
+        this.particles.emit(self.x, self.y - self.height / 2, {
+          count: 22, color: '#ff9a4a', speed: 220, spread: 1.0,
+          gravity: -100, life: 0.55, size: 5,
+        });
+        break;
+      }
+      case 'stun': {
+        // No effect-on-activate; the stun is applied on-hit via _resolveAttack (stunDuration).
+        this.particles.emit(self.x + self.facing * self.width * 0.5, self.y - self.height * 0.55, {
+          count: 10, color: '#ffffff', speed: 240, spread: 0.8,
+          gravity: 20, life: 0.35, size: 4,
+        });
+        break;
+      }
+      case 'lifesteal': {
+        // On-hit heal is applied by _resolveAttack.
+        this.particles.emit(self.x + self.facing * self.width * 0.5, self.y - self.height * 0.55, {
+          count: 10, color: '#ff5a8f', speed: 220, spread: 0.8,
+          gravity: 100, life: 0.4, size: 4,
+        });
+        break;
+      }
+      // dash/slam/teleport handled in fighter.js
+    }
+  }
+
   _onLanded(f) {
     if (f.attack?.type === 'special' && f.char.special.kind === 'slam' && f.specialFx) {
       f.specialFx.shockwave = Math.max(f.specialFx.shockwave, 0.35);
@@ -260,14 +331,12 @@ export class GameEngine {
     }
   }
 
-  // Per-frame + one-shot particle emissions per active special.
   _emitSpecialFxParticles(f) {
     if (!f.attack || f.attack.type !== 'special' || !f.specialFx) return;
     const a = f.attack;
     const s = f.char.special;
     const fx = f.specialFx;
 
-    // One-shot activation bursts
     if (fx.justStarted) {
       fx.justStarted = false;
       if (s.kind === 'dash') {
@@ -292,7 +361,6 @@ export class GameEngine {
       }
     }
 
-    // Teleport arrival burst (fires once when phase transitions vanish → strike)
     if (s.kind === 'teleport' && fx.arrivalBurstPending) {
       fx.arrivalBurstPending = false;
       this.shakeT = Math.max(this.shakeT, 0.22);
@@ -307,7 +375,6 @@ export class GameEngine {
       });
     }
 
-    // Continuous per-frame emissions (skip during recovery)
     if (a.phase === 'recovery') return;
     if (s.kind === 'dash') {
       this.particles.emit(f.x - f.facing * f.width * 0.4, f.y - f.height * 0.55, {
@@ -331,12 +398,61 @@ export class GameEngine {
     }
   }
 
+  _updateProjectiles(dt) {
+    if (this.projectiles.length === 0) return;
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      p.update(dt);
+      // Despawn past arena horizontal bounds
+      if (p.x < ARENA.wallPad - p.radius || p.x > ARENA.width - ARENA.wallPad + p.radius) {
+        p.dead = true;
+      }
+      if (p.dead) { this.projectiles.splice(i, 1); continue; }
+      if (p.hitOnce) continue;
+
+      // Collide with the non-owner fighter
+      const target = p.owner === this.player ? this.ai : this.player;
+      if (rectsOverlap(p.getHitbox(), target.hurtbox)) {
+        p.hitOnce = true;
+        this._applyProjectileHit(p, target);
+        p.dead = true;
+      }
+    }
+  }
+
+  _applyProjectileHit(proj, target) {
+    const attacker = proj.owner;
+    const blocked = target.blocking && target.onGround;
+    const modDmg = this._computeOutgoingDamage(attacker, proj.damage);
+    const effDef = {
+      damage: modDmg,
+      knockback: proj.def.knockback ?? 220,
+      hitstun: proj.def.hitstun ?? 0.28,
+    };
+    const dealt = target.applyHit(attacker, effDef);
+    if (!blocked) {
+      attacker.notifyLandedHit();
+      if (attacker.char.passive?.type === 'lifesteal') {
+        attacker.heal(dealt * attacker.char.passive.value);
+      }
+    }
+    // FX
+    const hx = proj.x, hy = proj.y;
+    this.shakeT = Math.max(this.shakeT, blocked ? 0.10 : 0.20);
+    this.shakeMag = Math.max(this.shakeMag, blocked ? 4 : 8);
+    this.freezeT = Math.max(this.freezeT, blocked ? 0.03 : 0.06);
+    this.particles.emit(hx, hy, {
+      count: blocked ? 14 : 22, color: blocked ? '#a7e0ff' : proj.color,
+      speed: 360, spread: 1.0, gravity: 300, life: 0.45, size: 4,
+    });
+    this.damageNumbers.spawn(hx, hy, dealt, blocked ? 'blocked' : 'special', proj.color);
+  }
+
   _simulate(dt) {
     this.time -= dt;
     if (this.time < 0) this.time = 0;
     this._stepEntities(dt);
 
-    // End conditions → transition to 'ko'
     const pDown = this.player.hp <= 0;
     const aDown = this.ai.hp <= 0;
     let pending = null;
@@ -350,11 +466,9 @@ export class GameEngine {
     }
     if (pending) {
       this.pendingStatus = pending;
-      // 'ko' when either fighter downed; 'timeup' if only time expired.
       this.koCause = (pDown || aDown) ? 'ko' : 'timeup';
       this.phase = 'ko';
       this.koT = KO_DURATION;
-      // KO emphasis: shake + flash + burst on the fallen fighter (or center on time-out draw)
       this.shakeT = 0.35;
       this.shakeMag = Math.max(this.shakeMag, 12);
       this.koFlashT = 0.18;
@@ -390,6 +504,25 @@ export class GameEngine {
     clamp(a); clamp(b);
   }
 
+  // Attacker-side outgoing damage modifiers:
+  //   low_health_damage_boost: attacker below 30% HP
+  //   combo_damage_boost:      stacks × per-stack value (max 4 stacks)
+  //   damage_boost buff:       temporary damage multiplier (damage_boost special)
+  // Note: defender-side reduction (damage_reduction passive) is applied inside applyHit.
+  _computeOutgoingDamage(attacker, baseDamage) {
+    let dmg = baseDamage;
+    const p = attacker.char.passive;
+    if (p?.type === 'low_health_damage_boost' && attacker.hp < attacker.maxHp * 0.30) {
+      dmg *= p.value;
+    }
+    if (p?.type === 'combo_damage_boost') {
+      const stacks = Math.min(4, attacker.comboCount || 0);
+      dmg *= (1 + p.value * stacks);
+    }
+    if (attacker.dmgBoostT > 0) dmg *= attacker.dmgBoostMult;
+    return dmg;
+  }
+
   _resolveAttack(attacker, defender, aiOwnsAttack) {
     const hb = attacker.getActiveHitbox();
     if (!hb) return;
@@ -399,19 +532,41 @@ export class GameEngine {
 
     attacker.attack.hitTargets.add(defender);
     const blocked = defender.blocking && defender.onGround;
-    const def = attacker.attack.def;
+    const rawDef = attacker.attack.def;
     const attackType = attacker.attack.type;
-    defender.applyHit(attacker, def);
+
+    // Effective damage with outgoing modifiers (defender reduction applied inside applyHit)
+    const modDamage = this._computeOutgoingDamage(attacker, rawDef.damage);
+    const effDef = { ...rawDef, damage: modDamage };
+
+    // Special-specific rider effects
+    let stunDuration = 0;
+    let lifestealFrac = 0;
+    if (attackType === 'special') {
+      const s = attacker.char.special;
+      if (s.kind === 'stun')      stunDuration = s.stunDuration || 1.0;
+      if (s.kind === 'lifesteal') lifestealFrac = s.lifestealFraction || 0.5;
+    }
+
+    const dealt = defender.applyHit(attacker, effDef, { stunDuration });
+
+    // On-hit passives / special riders
+    if (!blocked) {
+      attacker.notifyLandedHit();
+      if (attacker.char.passive?.type === 'lifesteal') {
+        attacker.heal(dealt * attacker.char.passive.value);
+      }
+      if (lifestealFrac > 0) attacker.heal(dealt * lifestealFrac);
+    }
+
     if (aiOwnsAttack) this.aiCtrl.notifyLandedHit();
     else              this.aiCtrl.notifyGotHit();
 
-    // Screen shake proportional to damage; smaller on block
-    const mag = blocked ? 3 : Math.min(12, 3.5 + def.damage * 0.45);
-    const dur = blocked ? 0.07 : Math.min(0.30, 0.10 + def.damage * 0.012);
-    if (dur > this.shakeT) this.shakeT = dur;
-    if (mag > this.shakeMag) this.shakeMag = mag;
-
-    // Hit-stop / freeze-frame — only heavies and specials (lights stay snappy)
+    // Shake + freeze
+    const mag = blocked ? 3 : Math.min(12, 3.5 + effDef.damage * 0.45);
+    const dur = blocked ? 0.07 : Math.min(0.30, 0.10 + effDef.damage * 0.012);
+    if (dur > this.shakeT)    this.shakeT = dur;
+    if (mag > this.shakeMag)  this.shakeMag = mag;
     if (!blocked) {
       if      (attackType === 'heavy')   this.freezeT = Math.max(this.freezeT, FREEZE_HEAVY_HIT);
       else if (attackType === 'special') this.freezeT = Math.max(this.freezeT, FREEZE_SPECIAL_HIT);
@@ -419,20 +574,18 @@ export class GameEngine {
       this.freezeT = Math.max(this.freezeT, FREEZE_BLOCKED_HVY);
     }
 
-    // Particles at hit point
+    // Particles + damage number
     const hx = hb.x + hb.w / 2;
     const hy = hb.y + hb.h / 2;
     const dir = Math.sign(attacker.facing);
     const coneAngle = dir > 0 ? 0 : Math.PI;
 
-    // Floating damage number
-    const dmgShown = blocked ? Math.round(def.damage * 0.20) : def.damage;
+    const dmgShown = Math.round(dealt);
     const dmgStyle = blocked ? 'blocked' : attackType;
     const dmgAccent = attackType === 'special' ? attacker.char.trail : null;
     this.damageNumbers.spawn(hx, hy, dmgShown, dmgStyle, dmgAccent);
 
     if (blocked) {
-      // Block impact — clanky bright burst, wider than a hit for readability
       this.particles.emit(hx, hy, {
         count: 22, color: '#a7e0ff', speed: 380, spread: 0.55,
         angle: coneAngle, gravity: 150, life: 0.45, size: 4, shape: 'square',
@@ -441,22 +594,19 @@ export class GameEngine {
         count: 14, color: '#ffffff', speed: 320, spread: 0.7,
         angle: coneAngle, gravity: 250, life: 0.35, size: 3,
       });
-      // Ring-pulse — a few big slow particles that stay near the impact
       this.particles.emit(hx, hy, {
         count: 6, color: '#ffffff', speed: 60, spread: 1.0,
         gravity: 0, life: 0.28, size: 8,
       });
     } else {
-      // Hit sparks — colored by attack type
       const color =
-        attacker.attack.type === 'special' ? attacker.char.trail :
-        attacker.attack.type === 'heavy'   ? '#ff6a6a' : '#fff7a3';
-      const count = 10 + Math.round(def.damage * 0.6);
+        attackType === 'special' ? attacker.char.trail :
+        attackType === 'heavy'   ? '#ff6a6a' : '#fff7a3';
+      const count = 10 + Math.round(effDef.damage * 0.6);
       this.particles.emit(hx, hy, {
-        count, color, speed: 300 + def.damage * 6, spread: 0.4,
+        count, color, speed: 300 + effDef.damage * 6, spread: 0.4,
         angle: coneAngle, gravity: 600, life: 0.45, size: 3.8,
       });
-      // Bright white flash burst
       this.particles.emit(hx, hy, {
         count: 6, color: '#ffffff', speed: 340, spread: 0.55,
         angle: coneAngle, gravity: 500, life: 0.28, size: 2.6,

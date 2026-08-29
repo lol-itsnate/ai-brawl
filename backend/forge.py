@@ -419,7 +419,12 @@ async def generate_validated_fighter(description: str) -> Tuple[FighterData, boo
     last_err = None
     for attempt in range(_MAX_ATTEMPTS):
         try:
+            log.info(
+                "Forge LLM call → provider=%s model=%s attempt=%d/%d desc=%r",
+                _MODEL_PROVIDER, _MODEL_NAME, attempt + 1, _MAX_ATTEMPTS, description[:80],
+            )
             raw = await asyncio.wait_for(_call_llm_once(description), timeout=_LLM_TIMEOUT_S)
+            log.info("Forge LLM raw response length=%d chars", len(raw))
             text = strip_fences(raw)
             try:
                 data = json.loads(text)
@@ -430,6 +435,11 @@ async def generate_validated_fighter(description: str) -> Tuple[FighterData, boo
                 data = json.loads(obj)
             fighter = normalize(data)
             balance_adjusted = apply_balance_budget(fighter)
+            log.info(
+                "Forge LLM success → name=%s special=%s passive=%s attempts_used=%d balance_adjusted=%s",
+                fighter.name, fighter.special.type.value, fighter.passive.type.value,
+                attempt + 1, balance_adjusted,
+            )
             return fighter, balance_adjusted
         except Exception as e:
             last_err = e

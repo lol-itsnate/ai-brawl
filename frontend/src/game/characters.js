@@ -7,9 +7,12 @@
 //   recovery: time after active before the fighter can act again
 //   damage:   HP damage on clean hit
 //   reach:    forward hitbox distance from fighter center
-//   hbW/hbH:  hitbox width/height
+//   hbW/hbH:  hitbox width/height (0/0 = no self hitbox, e.g. self-buff specials)
 //   knockback: horizontal push (px/s) applied to victim
 //   hitstunOverride: optional seconds — for specials
+//
+// Phase F2: default 3 fighters (VOLT/TITAN/WRAITH) are FROZEN — never edit them.
+// Generated fighters live in a runtime map registered from App.js.
 
 export const CHAR_IDS = ['volt', 'titan', 'wraith'];
 
@@ -81,6 +84,23 @@ export const CHARACTERS = {
   },
 };
 
+// Runtime registry for generated fighters (registered by App.js on mount / after forge).
+// Kept as a module-scoped Map so any consumer of getCharacter(id) transparently sees them.
+const _runtimeRoster = new Map();
+
+export function registerRuntimeCharacter(char) {
+  if (char && typeof char.id === 'string') _runtimeRoster.set(char.id, char);
+}
+export function unregisterRuntimeCharacter(id) {
+  _runtimeRoster.delete(id);
+}
+export function clearRuntimeRoster() {
+  _runtimeRoster.clear();
+}
+export function listRuntimeCharacters() {
+  return Array.from(_runtimeRoster.values());
+}
+
 export function getCharacter(id) {
-  return CHARACTERS[id] || CHARACTERS.volt;
+  return CHARACTERS[id] || _runtimeRoster.get(id) || CHARACTERS.volt;
 }

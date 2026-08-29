@@ -924,3 +924,463 @@
   line-height: 1.6;
   margin-top: 12px;
 }
+
+/* ============ PHASE F2: FORGE OPEN BUTTON (SELECT SCREEN) ============ */
+
+.brawl-forge-open-btn {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Bungee', sans-serif;
+  letter-spacing: 3px;
+  font-size: 0.78rem;
+  padding: 8px 16px 8px 12px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, rgba(255,60,140,0.18), rgba(180,90,255,0.18));
+  color: var(--text-hi);
+  border: 1px solid rgba(255,80,180,0.55);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease, background 0.15s ease;
+}
+.brawl-forge-open-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--neon-yellow);
+  box-shadow: 0 0 20px rgba(255, 225, 74, 0.35);
+  background: linear-gradient(135deg, rgba(255,225,74,0.15), rgba(180,90,255,0.20));
+}
+.brawl-forge-open-plus {
+  font-family: 'Rubik Mono One', monospace;
+  color: var(--neon-yellow);
+  font-size: 1.05rem;
+}
+
+/* ============ PHASE F2: GENERATED FIGHTER CARDS ============ */
+
+.brawl-roster-cards.wide {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.brawl-card-generated {
+  position: relative;
+  overflow: hidden;
+}
+.brawl-card-generated::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 40%, color-mix(in srgb, var(--card-color) 8%, transparent));
+  pointer-events: none;
+}
+
+.brawl-card-forged-tag {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  font-family: 'Rubik Mono One', monospace;
+  font-size: 0.5rem;
+  letter-spacing: 2px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  color: var(--card-accent);
+  background: rgba(0,0,0,0.55);
+  border: 1px solid color-mix(in srgb, var(--card-accent) 60%, transparent);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.brawl-card-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(0,0,0,0.55);
+  color: rgba(255,255,255,0.75);
+  font-family: 'Rubik Mono One', monospace;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 3;
+  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease, width 0.15s ease;
+}
+.brawl-card-delete-btn:hover {
+  border-color: var(--neon-pink);
+  color: var(--neon-pink);
+  background: rgba(255,60,140,0.10);
+}
+.brawl-card-delete-btn.is-confirming {
+  width: 52px;
+  background: rgba(255, 60, 140, 0.35);
+  border-color: var(--neon-pink);
+  color: #fff;
+  animation: confirmPulse 0.6s ease-in-out infinite;
+}
+@keyframes confirmPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(255,60,140,0); }
+  50%      { box-shadow: 0 0 14px rgba(255,60,140,0.65); }
+}
+
+.brawl-card-portrait-wrap {
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.brawl-fighter-preview {
+  display: block;
+}
+
+/* ============ PHASE F2: CORNER BACK BUTTON ============ */
+
+.brawl-corner-back {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  z-index: 5;
+}
+
+/* ============ PHASE F2: FORGE SCREEN ============ */
+
+.brawl-forge {
+  position: relative;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 60px 32px 40px;
+}
+
+.brawl-forge-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.brawl-forge-title {
+  font-family: 'Bungee Inline', 'Bungee', sans-serif;
+  font-size: clamp(2.6rem, 6vw, 4.4rem);
+  line-height: 0.95;
+  letter-spacing: 4px;
+  margin: 0;
+  color: var(--text-hi);
+  text-shadow: 0 0 32px rgba(180, 90, 255, 0.35);
+}
+.brawl-forge-title-accent {
+  color: var(--neon-yellow);
+  text-shadow: 0 0 22px rgba(255,225,74,0.7);
+}
+
+.brawl-forge-subtitle {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  letter-spacing: 4px;
+  color: var(--text-lo);
+  text-transform: uppercase;
+}
+
+.brawl-forge-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  align-items: stretch;
+}
+
+.brawl-forge-input-col,
+.brawl-forge-result-col {
+  min-height: 460px;
+  display: flex;
+  flex-direction: column;
+}
+
+.brawl-forge-label {
+  font-family: 'Bungee', sans-serif;
+  letter-spacing: 3px;
+  font-size: 0.78rem;
+  color: var(--neon-cyan);
+  margin-bottom: 10px;
+}
+
+.brawl-forge-textarea {
+  resize: none;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(180, 130, 255, 0.35);
+  background: rgba(5, 2, 16, 0.65);
+  color: var(--text-hi);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  transition: border-color 0.15s ease, box-shadow 0.2s ease;
+}
+.brawl-forge-textarea:focus {
+  outline: none;
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 20px rgba(60, 220, 255, 0.20);
+}
+.brawl-forge-textarea::placeholder { color: rgba(180, 160, 220, 0.45); }
+
+.brawl-forge-counter {
+  text-align: right;
+  font-size: 0.7rem;
+  color: var(--text-lo);
+  letter-spacing: 1.5px;
+  margin-top: 6px;
+}
+
+.brawl-forge-actions {
+  margin-top: 18px;
+}
+
+.brawl-forge-generate-btn {
+  width: 100%;
+  font-size: 1.05rem;
+  padding: 14px 22px;
+}
+.brawl-forge-generate-btn:disabled {
+  background: linear-gradient(180deg, #4b3157, #3a2540);
+  color: #7d6a99;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.brawl-forge-loading {
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px dashed rgba(180, 130, 255, 0.4);
+  border-radius: 4px;
+  background: rgba(20, 8, 44, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  animation: overlayIn 0.25s ease-out;
+}
+.brawl-forge-loading-text {
+  font-size: 0.82rem;
+  color: var(--text-lo);
+  letter-spacing: 1.5px;
+  line-height: 1.5;
+}
+.brawl-forge-loading-orbs {
+  display: flex;
+  gap: 6px;
+}
+.brawl-forge-loading-orbs span {
+  width: 10px; height: 10px;
+  background: var(--neon-yellow);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(255,225,74,0.9);
+  animation: forgeOrbBounce 0.9s ease-in-out infinite;
+}
+.brawl-forge-loading-orbs span:nth-child(2) { animation-delay: 0.15s; background: var(--neon-pink); box-shadow: 0 0 12px rgba(255,60,140,0.9); }
+.brawl-forge-loading-orbs span:nth-child(3) { animation-delay: 0.30s; background: var(--neon-cyan); box-shadow: 0 0 12px rgba(60,220,255,0.9); }
+@keyframes forgeOrbBounce {
+  0%, 100% { transform: translateY(0);   opacity: 0.7; }
+  50%      { transform: translateY(-8px); opacity: 1; }
+}
+
+.brawl-forge-error {
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid rgba(255, 60, 140, 0.55);
+  background: rgba(60, 6, 30, 0.35);
+  border-radius: 4px;
+}
+.brawl-forge-error-title {
+  font-family: 'Bungee', sans-serif;
+  letter-spacing: 3px;
+  color: var(--neon-pink);
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+.brawl-forge-error-msg {
+  color: var(--text-lo);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+/* Result card */
+
+.brawl-forge-result-empty {
+  flex: 1;
+  border: 1px dashed rgba(180, 130, 255, 0.30);
+  border-radius: 6px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-lo);
+  background: rgba(10, 4, 26, 0.35);
+}
+.brawl-forge-result-empty .brawl-fighter-preview {
+  opacity: 0.35;
+}
+.brawl-forge-hint {
+  font-family: 'Space Mono', monospace;
+  letter-spacing: 2px;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.brawl-forge-card {
+  flex: 1;
+  padding: 22px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 225, 74, 0.35);
+  background: linear-gradient(180deg, rgba(20,10,40,0.65), rgba(8,4,22,0.65));
+  box-shadow: 0 0 40px rgba(180, 90, 255, 0.15), inset 0 0 30px rgba(0,0,0,0.35);
+  animation: forgeCardIn 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@keyframes forgeCardIn {
+  0%   { transform: translateY(18px) scale(0.94); opacity: 0; filter: blur(6px); }
+  100% { transform: translateY(0)    scale(1);    opacity: 1; filter: blur(0);   }
+}
+
+.brawl-forge-card-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.brawl-forge-card-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.brawl-forge-card-name {
+  font-family: 'Bungee', sans-serif;
+  font-size: 1.6rem;
+  letter-spacing: 3px;
+  color: var(--text-hi);
+}
+.brawl-forge-card-balanced {
+  align-self: flex-start;
+  font-family: 'Rubik Mono One', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+  padding: 3px 8px;
+  border-radius: 2px;
+  color: #ffe27a;
+  background: rgba(255, 225, 74, 0.15);
+  border: 1px solid rgba(255, 225, 74, 0.55);
+}
+.brawl-forge-card-desc {
+  color: var(--text-lo);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.brawl-forge-card-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.brawl-forge-stat {
+  display: grid;
+  grid-template-columns: 70px 1fr 40px;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 1.5px;
+  color: var(--text-lo);
+}
+.brawl-forge-stat-label { font-family: 'Bungee', sans-serif; }
+.brawl-forge-stat-track {
+  height: 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.brawl-forge-stat-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-yellow));
+  box-shadow: 0 0 10px rgba(60, 220, 255, 0.35);
+  transition: width 0.5s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.brawl-forge-stat-val {
+  font-family: 'Rubik Mono One', monospace;
+  color: var(--text-hi);
+  text-align: right;
+}
+
+.brawl-forge-card-abilities {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.brawl-forge-ability {
+  padding: 10px 12px;
+  border: 1px solid rgba(180, 130, 255, 0.30);
+  border-radius: 4px;
+  background: rgba(0,0,0,0.30);
+}
+.brawl-forge-ability-tag {
+  font-family: 'Rubik Mono One', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 2px;
+  color: var(--neon-pink);
+  margin-bottom: 3px;
+}
+.brawl-forge-ability-name {
+  font-family: 'Bungee', sans-serif;
+  font-size: 0.82rem;
+  letter-spacing: 1.5px;
+  color: var(--text-hi);
+  margin-bottom: 3px;
+}
+.brawl-forge-ability-desc {
+  font-size: 0.72rem;
+  color: var(--text-lo);
+  line-height: 1.4;
+}
+
+.brawl-forge-card-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* ============ PHASE F2: HUD ADDITIONS (Shield / Damage Boost / Stun) ============ */
+
+.brawl-buff-badges {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 8px;
+  align-items: center;
+}
+.brawl-fighter-hud.right .brawl-buff-badges { margin-left: 0; margin-right: 8px; }
+
+.brawl-buff-badge {
+  font-family: 'Rubik Mono One', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 2px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+}
+.brawl-buff-shield { color: #a7e0ff; border-color: rgba(160, 210, 255, 0.55); background: rgba(160,210,255,0.10); }
+.brawl-buff-boost  { color: #ffb37a; border-color: rgba(255, 154, 74, 0.55);  background: rgba(255,154,74,0.10); }
+.brawl-buff-stun   { color: #ffe14a; border-color: rgba(255, 225, 74, 0.55);  background: rgba(255,225,74,0.10); animation: stunFlash 0.5s ease-in-out infinite; }
+
+@keyframes stunFlash {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1; }
+}
+
+/* ============ PHASE F2: RESPONSIVE FORGE ============ */
+
+@media (max-width: 900px) {
+  .brawl-forge-body { grid-template-columns: 1fr; }
+  .brawl-forge-card-abilities { grid-template-columns: 1fr; }
+}

@@ -123,9 +123,33 @@ function FighterBar({ side, data, testid }) {
     }
     prevReady.current = ready;
   }, [ready]);
+  const showShield = data.shieldHp > 0;
+  const showBoost  = data.dmgBoostT > 0;
+  const showStun   = data.stunT > 0;
   return (
     <div className={`brawl-fighter-hud ${side} ${lowHp ? 'low-hp' : ''}`} data-testid={testid}>
-      <div className="brawl-fighter-name" data-testid={`${testid}-name`}>{data.name}</div>
+      <div className="brawl-fighter-name" data-testid={`${testid}-name`}>
+        {data.name}
+        {(showShield || showBoost || showStun) && (
+          <span className="brawl-buff-badges" data-testid={`${testid}-buffs`}>
+            {showShield && (
+              <span className="brawl-buff-badge brawl-buff-shield" data-testid={`${testid}-shield`}>
+                SHIELD {Math.ceil(data.shieldHp)}
+              </span>
+            )}
+            {showBoost && (
+              <span className="brawl-buff-badge brawl-buff-boost" data-testid={`${testid}-boost`}>
+                BOOST {data.dmgBoostT.toFixed(1)}s
+              </span>
+            )}
+            {showStun && (
+              <span className="brawl-buff-badge brawl-buff-stun" data-testid={`${testid}-stun`}>
+                STUNNED
+              </span>
+            )}
+          </span>
+        )}
+      </div>
       <div className="brawl-hp-track" aria-hidden>
         {/* Delayed ghost bar — CSS transition lags behind the actual HP */}
         <div className="brawl-hp-ghost" style={{ width: `${pct}%` }} data-testid={`${testid}-hp-ghost`} />
