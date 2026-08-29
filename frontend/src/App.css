@@ -1,0 +1,500 @@
+/* ============================================================
+   AI BRAWL — Phase 1 styles
+   Aesthetic: dark synthwave arcade + brutalist display type
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Bungee&family=Bungee+Inline&family=Rubik+Mono+One&family=Space+Mono:wght@400;700&display=swap');
+
+:root {
+  --bg-0: #050210;
+  --bg-1: #0e0620;
+  --bg-2: #170a34;
+  --neon-pink: #ff3d8b;
+  --neon-cyan: #3ee8ff;
+  --neon-yellow: #ffe14a;
+  --neon-purple: #b56bff;
+  --hp-good: #4ff08a;
+  --hp-warn: #ffbd3d;
+  --hp-crit: #ff4a4a;
+  --text-hi: #f7f2ff;
+  --text-lo: #a99cd6;
+}
+
+.brawl-app {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(255,60,140,0.15), transparent 55%),
+    radial-gradient(ellipse at 80% 90%, rgba(60,220,255,0.10), transparent 60%),
+    linear-gradient(180deg, var(--bg-0), var(--bg-1) 60%, var(--bg-2));
+  color: var(--text-hi);
+  font-family: 'Space Mono', ui-monospace, monospace;
+  overflow-x: hidden;
+}
+
+/* ============ SELECT SCREEN ============ */
+
+.brawl-select {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 48px 32px 64px;
+}
+
+.brawl-select-header {
+  text-align: center;
+  margin-bottom: 42px;
+}
+
+.brawl-title {
+  font-family: 'Bungee Inline', 'Bungee', sans-serif;
+  font-size: clamp(3.2rem, 8vw, 6rem);
+  line-height: 0.95;
+  letter-spacing: 4px;
+  margin: 0;
+  background: linear-gradient(180deg, #fff 0%, #d8c5ff 55%, #7a5cff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 40px rgba(180, 90, 255, 0.35);
+}
+
+.brawl-title-accent {
+  color: var(--neon-pink);
+  -webkit-text-fill-color: var(--neon-pink);
+  text-shadow: 0 0 22px rgba(255,60,140,0.7);
+}
+
+.brawl-subtitle {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+  letter-spacing: 6px;
+  color: var(--text-lo);
+  text-transform: uppercase;
+}
+
+.brawl-select-panels {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 28px;
+  align-items: stretch;
+}
+
+.brawl-vs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brawl-vs-x {
+  font-family: 'Bungee', sans-serif;
+  font-size: 3.5rem;
+  color: var(--neon-pink);
+  text-shadow:
+    0 0 15px rgba(255,60,140,0.75),
+    0 0 40px rgba(255,60,140,0.35);
+  transform: rotate(-6deg);
+}
+
+.brawl-roster {
+  border: 1px solid rgba(180, 130, 255, 0.22);
+  border-radius: 8px;
+  padding: 20px 18px;
+  background: rgba(10, 5, 25, 0.55);
+  backdrop-filter: blur(6px);
+}
+
+.brawl-roster-heading {
+  font-family: 'Bungee', sans-serif;
+  letter-spacing: 4px;
+  font-size: 0.95rem;
+  color: var(--text-lo);
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+.brawl-roster.right .brawl-roster-heading {
+  color: var(--neon-cyan);
+}
+.brawl-roster.left .brawl-roster-heading {
+  color: var(--neon-pink);
+}
+
+.brawl-roster-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.brawl-card {
+  --card-color: #fff;
+  --card-accent: #fff;
+  --card-trail: #fff;
+  position: relative;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.15));
+  color: var(--text-hi);
+  padding: 14px 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.2s ease;
+  font-family: 'Space Mono', monospace;
+}
+
+.brawl-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--card-color);
+}
+
+.brawl-card.is-selected {
+  border-color: var(--card-color);
+  box-shadow: 0 0 0 1px var(--card-color), 0 0 24px 0 var(--card-trail);
+  background: linear-gradient(180deg, rgba(0,0,0,0.65), color-mix(in srgb, var(--card-color) 12%, transparent));
+}
+
+.brawl-portrait {
+  width: 100%;
+  height: 96px;
+  display: block;
+  filter: drop-shadow(0 0 10px var(--card-trail));
+}
+
+.brawl-card-name {
+  font-family: 'Bungee', sans-serif;
+  font-size: 1.05rem;
+  letter-spacing: 2px;
+  margin: 8px 0 6px;
+  color: var(--card-color);
+}
+
+.brawl-card-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.brawl-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.65rem;
+  letter-spacing: 1px;
+  color: var(--text-lo);
+}
+
+.brawl-stat-label {
+  width: 44px;
+}
+
+.brawl-stat-track {
+  flex: 1;
+  height: 5px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.brawl-stat-fill {
+  height: 100%;
+  background: var(--card-color);
+  box-shadow: 0 0 8px var(--card-trail);
+}
+
+.brawl-card-special {
+  border-top: 1px dashed rgba(255,255,255,0.10);
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.brawl-card-special-label {
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+  color: var(--text-lo);
+}
+
+.brawl-card-special-val {
+  font-family: 'Bungee', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 1.5px;
+  color: var(--card-accent);
+}
+
+.brawl-select-footer {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.brawl-fight-btn {
+  font-size: 1.6rem;
+  padding: 18px 60px;
+}
+
+.brawl-mirror-note {
+  font-size: 0.75rem;
+  color: var(--text-lo);
+  letter-spacing: 2px;
+}
+
+/* ============ BUTTONS ============ */
+
+.brawl-btn {
+  font-family: 'Bungee', sans-serif;
+  letter-spacing: 3px;
+  border: none;
+  cursor: pointer;
+  padding: 12px 26px;
+  border-radius: 4px;
+  transition: transform 0.12s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.brawl-btn:hover { transform: translateY(-2px); }
+.brawl-btn:active { transform: translateY(0); }
+
+.brawl-btn-primary {
+  background: linear-gradient(180deg, #ff5099, #d81f6b);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(255,80,150,0.55);
+}
+.brawl-btn-primary:hover {
+  box-shadow: 0 0 30px rgba(255,80,150,0.85);
+}
+
+.brawl-btn-ghost {
+  background: transparent;
+  color: var(--text-hi);
+  border: 1px solid rgba(255,255,255,0.20);
+}
+.brawl-btn-ghost:hover {
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+}
+
+/* ============ FIGHT STAGE ============ */
+
+.brawl-stage {
+  padding: 20px 24px 24px;
+  max-width: 1360px;
+  margin: 0 auto;
+}
+
+.brawl-hud {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+
+.brawl-fighter-hud {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.brawl-fighter-hud.right {
+  align-items: flex-end;
+}
+
+.brawl-fighter-name {
+  font-family: 'Bungee', sans-serif;
+  font-size: 1.35rem;
+  letter-spacing: 3px;
+  color: var(--text-hi);
+}
+
+.brawl-hp-track {
+  width: 100%;
+  max-width: 480px;
+  height: 22px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.35));
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.brawl-hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff4a4a 0%, #ffbd3d 45%, #4ff08a 100%);
+  box-shadow: inset 0 0 12px rgba(255,255,255,0.25), 0 0 12px rgba(255, 80, 130, 0.35);
+  transition: width 0.12s linear;
+}
+
+.brawl-fighter-hud.right .brawl-hp-fill {
+  background: linear-gradient(270deg, #ff4a4a 0%, #ffbd3d 45%, #4ff08a 100%);
+}
+
+.brawl-hp-num {
+  font-family: 'Rubik Mono One', 'Bungee', sans-serif;
+  font-size: 0.95rem;
+  color: var(--text-hi);
+  letter-spacing: 2px;
+}
+
+.brawl-special {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.72rem;
+  letter-spacing: 2px;
+  color: var(--text-lo);
+}
+.brawl-fighter-hud.right .brawl-special { flex-direction: row-reverse; }
+
+.brawl-special-label { font-family: 'Bungee', sans-serif; }
+
+.brawl-special-track {
+  width: 120px;
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.brawl-special-fill {
+  height: 100%;
+  background: var(--neon-yellow);
+  box-shadow: 0 0 8px rgba(255, 225, 74, 0.7);
+  transition: width 0.15s linear;
+}
+
+.brawl-special.ready .brawl-special-val {
+  color: var(--neon-yellow);
+  text-shadow: 0 0 8px rgba(255, 225, 74, 0.85);
+}
+
+.brawl-timer {
+  font-family: 'Rubik Mono One', 'Bungee', sans-serif;
+  font-size: 3.6rem;
+  line-height: 1;
+  color: var(--neon-yellow);
+  text-shadow: 0 0 22px rgba(255, 225, 74, 0.55);
+  padding: 4px 22px 6px;
+  border: 2px solid rgba(255, 225, 74, 0.35);
+  border-radius: 4px;
+  background: rgba(0,0,0,0.45);
+  min-width: 140px;
+  text-align: center;
+}
+
+/* ============ CANVAS ============ */
+
+.brawl-canvas-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 1; /* 1200x600 */
+  max-width: 1300px;
+  margin: 0 auto;
+  border: 1px solid rgba(255,60,140,0.25);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(255,60,140,0.20), inset 0 0 60px rgba(0,0,0,0.55);
+}
+
+.brawl-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: crisp-edges;
+}
+
+/* ============ CONTROLS HINT ============ */
+
+.brawl-controls {
+  margin-top: 18px;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-size: 0.78rem;
+  letter-spacing: 2px;
+  color: var(--text-lo);
+}
+
+.brawl-controls kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 2px 6px;
+  margin-right: 6px;
+  font-family: 'Rubik Mono One', monospace;
+  font-size: 0.75rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 3px;
+  color: var(--text-hi);
+  text-align: center;
+}
+
+/* ============ RESULT OVERLAY ============ */
+
+.brawl-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 2, 16, 0.75);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: overlayIn 0.35s ease-out;
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.brawl-overlay-card {
+  text-align: center;
+  padding: 40px 60px;
+  border-radius: 8px;
+  background: rgba(15, 8, 32, 0.85);
+  border: 1px solid rgba(255,255,255,0.15);
+  animation: cardIn 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@keyframes cardIn {
+  from { transform: translateY(20px) scale(0.94); opacity: 0; }
+  to   { transform: translateY(0) scale(1);       opacity: 1; }
+}
+
+.brawl-overlay-label {
+  font-family: 'Bungee Inline', 'Bungee', sans-serif;
+  font-size: clamp(3.2rem, 8vw, 6rem);
+  letter-spacing: 6px;
+  line-height: 1;
+  margin-bottom: 26px;
+}
+
+.result-win  .brawl-overlay-label {
+  color: var(--neon-yellow);
+  text-shadow: 0 0 24px rgba(255,225,74,0.8);
+}
+.result-lose .brawl-overlay-label {
+  color: var(--neon-pink);
+  text-shadow: 0 0 24px rgba(255,60,140,0.8);
+}
+.result-draw .brawl-overlay-label {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 24px rgba(60,220,255,0.8);
+}
+
+.brawl-overlay-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ============ RESPONSIVE ============ */
+
+@media (max-width: 900px) {
+  .brawl-select-panels {
+    grid-template-columns: 1fr;
+  }
+  .brawl-vs { padding: 8px 0; }
+  .brawl-timer { font-size: 2.4rem; min-width: 100px; }
+  .brawl-fighter-name { font-size: 1rem; }
+}
