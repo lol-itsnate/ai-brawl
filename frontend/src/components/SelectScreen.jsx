@@ -1,29 +1,44 @@
 import React, { useState } from 'react';
 import { CHARACTERS } from '../game/characters.js';
-
-// Minimal dev select screen: pick player + AI, then FIGHT.
-// Phase-2 will replace with a polished character-select flow.
+import ControlsOverlay from './ControlsOverlay.jsx';
 
 const ROSTER = ['volt', 'titan', 'wraith'];
 
+const SPECIAL_DESC = {
+  volt:   'Electric dash — closes distance and shocks on contact.',
+  titan:  'Shockwave slam — heavy AOE with strong knockback.',
+  wraith: 'Phase strike — teleports behind the foe and strikes.',
+};
+
 export default function SelectScreen({ onStart }) {
-  const [player, setPlayer] = useState('volt');
-  const [ai, setAi] = useState('titan');
+  const [player, setPlayer] = useState(null);
+  const [ai, setAi] = useState(null);
+  const [showControls, setShowControls] = useState(false);
+  const ready = !!(player && ai);
 
   return (
     <div className="brawl-select" data-testid="select-screen">
+      <button
+        className="brawl-icon-btn brawl-corner-controls"
+        onClick={() => setShowControls(true)}
+        data-testid="select-controls-btn"
+      >
+        CONTROLS
+      </button>
+
       <header className="brawl-select-header">
         <h1 className="brawl-title" data-testid="app-title">
           <span className="brawl-title-accent">AI</span> BRAWL
         </h1>
         <p className="brawl-subtitle" data-testid="app-subtitle">
-          Phase 1 · Core Fight Engine
+          Pick your fighter · Pick your opponent · Brawl
         </p>
       </header>
 
       <div className="brawl-select-panels">
         <RosterPanel
-          heading="PLAYER"
+          step={1}
+          heading="YOUR FIGHTER"
           side="left"
           selected={player}
           onSelect={setPlayer}
@@ -33,7 +48,8 @@ export default function SelectScreen({ onStart }) {
           <span className="brawl-vs-x">VS</span>
         </div>
         <RosterPanel
-          heading="AI OPPONENT"
+          step={2}
+          heading="OPPONENT"
           side="right"
           selected={ai}
           onSelect={setAi}
@@ -43,23 +59,27 @@ export default function SelectScreen({ onStart }) {
 
       <div className="brawl-select-footer">
         <button
-          className="brawl-btn brawl-btn-primary brawl-fight-btn"
-          onClick={() => onStart(player, ai)}
+          className={`brawl-btn brawl-btn-primary brawl-fight-btn ${ready ? '' : 'is-disabled'}`}
+          onClick={() => { if (ready) onStart(player, ai); }}
+          disabled={!ready}
           data-testid="fight-button"
         >
-          FIGHT
+          {ready ? 'FIGHT' : 'PICK BOTH FIGHTERS'}
         </button>
         <div className="brawl-mirror-note" data-testid="mirror-hint">
           Mirror matches are allowed — the AI copy will be tinted.
         </div>
       </div>
+
+      {showControls && <ControlsOverlay onClose={() => setShowControls(false)} />}
     </div>
   );
 }
 
-function RosterPanel({ heading, side, selected, onSelect, testid }) {
+function RosterPanel({ step, heading, side, selected, onSelect, testid }) {
   return (
     <div className={`brawl-roster ${side}`} data-testid={testid}>
+      <div className="brawl-roster-step" data-testid={`${testid}-step`}>STEP {step}</div>
       <div className="brawl-roster-heading">{heading}</div>
       <div className="brawl-roster-cards">
         {ROSTER.map((id) => {
@@ -85,8 +105,8 @@ function RosterPanel({ heading, side, selected, onSelect, testid }) {
                 <StatRow label="POWER" value={c.heavy.damage} max={20} />
               </div>
               <div className="brawl-card-special">
-                <span className="brawl-card-special-label">SPECIAL</span>
-                <span className="brawl-card-special-val">{c.special.name}</span>
+                <span className="brawl-card-special-label">SPECIAL · {c.special.name}</span>
+                <span className="brawl-card-special-desc">{SPECIAL_DESC[id]}</span>
               </div>
             </button>
           );

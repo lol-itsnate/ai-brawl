@@ -1,0 +1,25 @@
+{
+  "summary": "AI BRAWL Phase 2 full regression: backend + frontend polish (intro overlay, pause via controls mid-fight, small-viewport gate, matchup swap, character cards). Backend 3/3 pytest pass. Frontend 44/44 Playwright assertions pass including STEP 1/STEP 2 layout, disabled FIGHT gating, all 4 close methods for the controls modal (X/Escape/backdrop/RESUME), intro overlay READY→FIGHT! transition, timer & HP frozen during intro, mid-fight pause freezes timer, resume decrements timer, topbar-exit returns to select, fresh intro on new TITAN vs WRAITH matchup (140/140 & 100/100), mirror match (VOLT vs VOLT), and small-viewport gate at 600px.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "GameCanvas", "issues": ["Recurring browser warning: Canvas2D getImageData without willReadFrequently=true. Perf hint only — pass {willReadFrequently:true} to getContext('2d') in renderer.js to silence."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_backend.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Renderer still triggers Canvas2D willReadFrequently perf warning (carried from Phase 1). Cheap fix: canvas.getContext('2d', { willReadFrequently: true }).",
+    "GameCanvas.jsx has two independent Escape listeners (one in GameCanvas, one in ControlsOverlay). Harmless today but could clash if more shortcuts are added — consolidate.",
+    "REMATCH (data-testid=restart-button) and CHANGE FIGHTERS (data-testid=exit-button) exist in ResultOverlay code path but weren't exercised end-to-end since forcing a KO in a 60s round is flaky; validated equivalent 'fresh state on new fight' via topbar-exit + new matchup as suggested by the review request."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None",
+  "test_credentials": "None — public game, no auth.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 2 verified 100%. Result overlay REMATCH/CHANGE FIGHTERS buttons still not exercised via real KO (60s round too long). To test in future: either shorten round timer via engine config, expose a debug hook to set HP=0, or programmatically call engineRef.current._endMatch(). Backend tests: /app/backend/tests/test_backend.py; frontend tested with Playwright against REACT_APP_BACKEND_URL."
+}

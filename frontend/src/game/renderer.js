@@ -4,17 +4,34 @@ import { ARENA } from './constants.js';
 // The React component sets canvas.width/height and applies CSS scale.
 
 export function renderScene(ctx, engine) {
+  // Apply screen shake (canvas-only; HUD is HTML)
+  const shaking = engine.shakeT > 0 && engine.shakeMag > 0;
+  const sx = shaking ? (Math.random() - 0.5) * engine.shakeMag : 0;
+  const sy = shaking ? (Math.random() - 0.5) * engine.shakeMag : 0;
+  ctx.save();
+  ctx.translate(sx, sy);
+
   // Backdrop
   drawBackdrop(ctx);
   drawGround(ctx);
 
-  // Fighters (draw back one first based on y? both feet at same y, but attacker overlay on top of defender if hit-flashing)
+  // Fighters — draw AI first so player renders on top when overlapped
   const order = [engine.ai, engine.player];
-  // Player on top for visual priority when overlapped
   for (const f of order) drawFighter(ctx, f);
 
-  // Draw active hitboxes only when debug enabled
-  // (kept off for release)
+  // Particles overlaid on scene
+  if (engine.particles) engine.particles.draw(ctx);
+
+  // KO flash overlay — brief white pop
+  if (engine.koFlashT > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, engine.koFlashT * 4);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, engine.canvas.width, engine.canvas.height);
+    ctx.restore();
+  }
+
+  ctx.restore();
 }
 
 function drawBackdrop(ctx) {
