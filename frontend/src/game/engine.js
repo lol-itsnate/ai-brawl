@@ -201,11 +201,112 @@ export class GameEngine {
   _stepEntities(dt) {
     const pIntent = this._readPlayerIntent();
     const aIntent = this.aiCtrl.update(dt, this.ai, this.player);
+    // Track ground state before update so we can detect landing events
+    const pWasAir = !this.player.onGround;
+    const aWasAir = !this.ai.onGround;
     this.player.update(dt, this.ai, pIntent);
     this.ai.update(dt, this.player, aIntent);
+    if (pWasAir && this.player.onGround) this._onLanded(this.player);
+    if (aWasAir && this.ai.onGround)     this._onLanded(this.ai);
+    // Per-frame special FX emissions (dash sparks, teleport wisps, slam dust)
+    this._emitSpecialFxParticles(this.player);
+    this._emitSpecialFxParticles(this.ai);
     this._resolveOverlap(this.player, this.ai);
     this._resolveAttack(this.player, this.ai, /*aiOwnsAttack*/ false);
     this._resolveAttack(this.ai, this.player, /*aiOwnsAttack*/ true);
+  }
+
+  // TITAN's slam landing: big shockwave + dust + heavy shake.
+  _onLanded(f) {
+    if (f.attack?.type === 'special' && f.char.special.kind === 'slam' && f.specialFx) {
+      f.specialFx.shockwave = Math.max(f.specialFx.shockwave, 0.35);
+      this.shakeT = Math.max(this.shakeT, 0.50);
+      this.shakeMag = Math.max(this.shakeMag, 18);
+      const g = ARENA.groundY;
+      this.particles.emit(f.x, g, {
+        count: 26, color: '#ffb984', speed: 380, spread: 0.7,
+        angle: Math.PI * 1.5, gravity: -200, life: 0.7, size: 6,
+      });
+      this.particles.emit(f.x - 70, g, {
+        count: 12, color: '#ffe0aa', speed: 300, spread: 0.35,
+        angle: Math.PI, gravity: 200, life: 0.6, size: 5, shape: 'square',
+      });
+      this.particles.emit(f.x + 70, g, {
+        count: 12, color: '#ffe0aa', speed: 300, spread: 0.35,
+        angle: 0, gravity: 200, life: 0.6, size: 5, shape: 'square',
+      });
+    }
+  }
+
+  // Per-frame + one-shot particle emissions per active special.
+  _emitSpecialFxParticles(f) {
+    if (!f.attack || f.attack.type !== 'special' || !f.specialFx) return;
+    const a = f.attack;
+    const s = f.char.special;
+    const fx = f.specialFx;
+
+    // One-shot activation bursts
+    if (fx.justStarted) {
+      fx.justStarted = false;
+      if (s.kind === 'dash') {
+        this.shakeT = Math.max(this.shakeT, 0.18);
+        this.shakeMag = Math.max(this.shakeMag, 8);
+        this.particles.emit(f.x, f.y - f.height/2, {
+          count: 22, color: '#fff5a3', speed: 380, spread: 1.0,
+          gravity: 100, life: 0.4, size: 4,
+        });
+      } else if (s.kind === 'slam') {
+        this.particles.emit(f.x, ARENA.groundY, {
+          count: 10, color: '#ffb984', speed: 240, spread: 0.5,
+          angle: Math.PI * 1.5, gravity: -100, life: 0.45, size: 5,
+        });
+      } else if (s.kind === 'teleport') {
+        this.shakeT = Math.max(this.shakeT, 0.15);
+        this.shakeMag = Math.max(this.shakeMag, 6);
+        this.particles.emit(f.x, f.y - f.height/2, {
+          count: 24, color: f.char.trail, speed: 260, spread: 1.0,
+          gravity: -60, life: 0.5, size: 4,
+        });
+      }
+    }
+
+    // Teleport arrival burst (fires once when phase transitions vanish → strike)
+    if (s.kind === 'teleport' && fx.arrivalBurstPending) {
+      fx.arrivalBurstPending = false;
+      this.shakeT = Math.max(this.shakeT, 0.22);
+      this.shakeMag = Math.max(this.shakeMag, 10);
+      this.particles.emit(f.x, f.y - f.height/2, {
+        count: 30, color: f.char.trail, speed: 340, spread: 1.0,
+        gravity: 200, life: 0.55, size: 5,
+      });
+      this.particles.emit(f.x, f.y - f.height/2, {
+        count: 14, color: '#ffb3ff', speed: 220, spread: 1.0,
+        gravity: 150, life: 0.45, size: 4,
+      });
+    }
+
+    // Continuous per-frame emissions (skip during recovery)
+    if (a.phase === 'recovery') return;
+    if (s.kind === 'dash') {
+      this.particles.emit(f.x - f.facing * f.width * 0.4, f.y - f.height * 0.55, {
+        count: 3, color: '#fff5a3', speed: 220, spread: 0.6,
+        angle: f.facing > 0 ? Math.PI : 0, gravity: -20, life: 0.28, size: 3.2,
+      });
+      this.particles.emit(f.x, f.y - f.height * 0.7, {
+        count: 2, color: '#7fd0ff', speed: 260, spread: 1.0,
+        gravity: 100, life: 0.35, size: 4,
+      });
+    } else if (s.kind === 'slam' && a.phase === 'active' && f.onGround) {
+      this.particles.emit(f.x + (Math.random() - 0.5) * 60, ARENA.groundY, {
+        count: 2, color: '#ffd090', speed: 260, spread: 0.4,
+        angle: Math.PI * 1.5, gravity: -300, life: 0.5, size: 5,
+      });
+    } else if (s.kind === 'teleport' && a.phase === 'startup') {
+      this.particles.emit(f.x, f.y - f.height/2, {
+        count: 2, color: f.char.trail, speed: 130, spread: 1.0,
+        gravity: -60, life: 0.35, size: 4,
+      });
+    }
   }
 
   _simulate(dt) {
@@ -291,14 +392,19 @@ export class GameEngine {
     const coneAngle = dir > 0 ? 0 : Math.PI;
 
     if (blocked) {
-      // Block impact — cool white/blue burst, tight cone kicking outward
+      // Block impact — clanky bright burst, wider than a hit for readability
       this.particles.emit(hx, hy, {
-        count: 12, color: '#a7e0ff', speed: 300, spread: 0.35,
-        angle: coneAngle, gravity: 200, life: 0.35, size: 3.2, shape: 'square',
+        count: 22, color: '#a7e0ff', speed: 380, spread: 0.55,
+        angle: coneAngle, gravity: 150, life: 0.45, size: 4, shape: 'square',
       });
       this.particles.emit(hx, hy, {
-        count: 8, color: '#ffffff', speed: 220, spread: 0.5,
-        angle: coneAngle, gravity: 350, life: 0.28, size: 2.4,
+        count: 14, color: '#ffffff', speed: 320, spread: 0.7,
+        angle: coneAngle, gravity: 250, life: 0.35, size: 3,
+      });
+      // Ring-pulse — a few big slow particles that stay near the impact
+      this.particles.emit(hx, hy, {
+        count: 6, color: '#ffffff', speed: 60, spread: 1.0,
+        gravity: 0, life: 0.28, size: 8,
       });
     } else {
       // Hit sparks — colored by attack type

@@ -113,44 +113,86 @@ function drawFighter(ctx, f) {
   const char = f.char;
   const cx = f.x;
   const feetY = f.y;
-  const bodyTop = feetY - f.height;
 
-  // Ground shadow
+  // WRAITH teleport fades body opacity out during startup, in during strike
+  let alpha = 1;
+  if (f.attack?.type === 'special' && char.special.kind === 'teleport' && f.specialFx) {
+    if (f.attack.phase === 'startup') {
+      alpha = Math.max(0.15, f.attack.t / char.special.startup);
+    } else if (f.attack.phase === 'active' && f.specialFx.phase === 'strike') {
+      const p = 1 - (f.attack.t / char.special.active);
+      alpha = Math.min(1, p * 2.5);
+    }
+  }
+
+  // Ground shadow (fades with body)
   ctx.save();
-  ctx.globalAlpha = 0.35;
+  ctx.globalAlpha = 0.35 * alpha;
   ctx.fillStyle = 'rgba(0,0,0,0.7)';
   ctx.beginPath();
   ctx.ellipse(cx, ARENA.groundY + 4, f.width * 0.55, 8, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
-  // Special FX behind body
+  // Special FX behind body (dash trail, teleport afterimages)
   drawSpecialFxBehind(ctx, f);
 
-  // Choose per-char draw
-  const tint = f.tint;
-  const primary = tint || char.color;
+  const primary = f.tint || char.color;
   const glow = char.trail;
   const flash = f.flashT > 0;
+  const pose = computeAttackPose(f);
 
   ctx.save();
+  ctx.globalAlpha = alpha;
   ctx.translate(cx, feetY);
   ctx.scale(f.facing, 1);
-  if (char.id === 'volt') drawVolt(ctx, f, primary, glow, flash);
-  else if (char.id === 'titan') drawTitan(ctx, f, primary, glow, flash);
-  else drawWraith(ctx, f, primary, glow, flash);
+  if (char.id === 'volt')       drawVolt(ctx, f, primary, glow, flash, pose);
+  else if (char.id === 'titan') drawTitan(ctx, f, primary, glow, flash, pose);
+  else                          drawWraith(ctx, f, primary, glow, flash, pose);
   ctx.restore();
 
-  // Special FX in front (e.g., slam shockwave, teleport strike marker)
+  // Block shield glyph in front of blocking fighters
+  if (f.blocking) drawBlockShield(ctx, f);
+
+  // Special FX in front (slam shockwave, teleport arrival flash)
   drawSpecialFxFront(ctx, f);
 
-  // Attack tell / active hitbox visualization (a bright arc)
+  // Active attack impact swoosh
   drawAttackFx(ctx, f);
+}
+
+// Compute the animation pose for the attacking arm/weapon.
+// Returns armReach in body-width units: negative = arm pulled back (windup),
+// positive = arm extended forward (strike). Recovery relaxes back toward 0.
+function computeAttackPose(f) {
+  const pose = { attacking: false, armReach: 0, armY: -0.55, isHeavy: false, isSpecial: false, phase: null };
+  if (!f.attack) return pose;
+  const a = f.attack;
+  const def = a.def;
+  pose.attacking = true;
+  pose.isHeavy = a.type === 'heavy';
+  pose.isSpecial = a.type === 'special';
+  pose.phase = a.phase;
+  const forwardExtend = pose.isSpecial ? 1.35 : pose.isHeavy ? 1.25 : 1.00;
+  const windupBack    = pose.isSpecial ? -0.35 : pose.isHeavy ? -0.55 : -0.35;
+  if (a.phase === 'startup') {
+    const p = 1 - (a.t / def.startup); // 0..1 as windup progresses
+    pose.armReach = windupBack * p;
+    pose.armY = -0.55 - (pose.isHeavy ? 0.10 * p : 0.04 * p);
+  } else if (a.phase === 'active') {
+    pose.armReach = forwardExtend;
+    pose.armY = -0.55;
+  } else if (a.phase === 'recovery') {
+    const p = a.t / def.recovery;
+    pose.armReach = forwardExtend * p * 0.75;
+    pose.armY = -0.55;
+  }
+  return pose;
 }
 
 /* Draw helpers use local coords: origin at feet, +x = forward (facing direction). */
 
-function drawVolt(ctx, f, color, glow, flash) {
+function drawVolt(ctx, f, color, glow, flash, pose) {
   const h = f.height;
   const w = f.width;
   const bodyH = h * 0.55;
@@ -202,13 +244,56 @@ function drawVolt(ctx, f, color, glow, flash) {
   ctx.fillStyle = f.char.accent;
   ctx.fillRect(-w*0.15, headY - 3, w*0.22, 6);
 
+  // Dynamic arm/hand — lightning fist
+  drawArmVolt(ctx, f, pose, color);
+
   ctx.restore();
 
   // Flash overlay
   if (flash) overlayFlash(ctx, f);
 }
 
-function drawTitan(ctx, f, color, glow, flash) {
+function drawArmVolt(ctx, f, pose, color) {
+  const w = f.width, h = f.height;
+  const shoulderX = w * 0.10;
+  const shoulderY = -h * 0.68;
+  if (!pose.attacking) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(w * 0.18, -h * 0.62, w * 0.13, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  const handX = shoulderX + pose.armReach * w * 1.15;
+  const handY = pose.armY * h;
+  // Arm segment
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w * (pose.isHeavy ? 0.22 : 0.18);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(shoulderX, shoulderY);
+  ctx.lineTo(handX, handY);
+  ctx.stroke();
+  // Hand / spark
+  const handR = w * (pose.isHeavy ? 0.24 : 0.18);
+  ctx.fillStyle = pose.phase === 'active'
+    ? (pose.isSpecial ? '#fff7a3' : (pose.isHeavy ? '#ffe14a' : '#fff8b8'))
+    : f.char.accent;
+  ctx.beginPath();
+  ctx.arc(handX, handY, handR, 0, Math.PI * 2);
+  ctx.fill();
+  if (pose.phase === 'active') {
+    ctx.strokeStyle = 'rgba(255,240,120,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(handX, handY);
+    ctx.lineTo(handX + w * 0.15, handY - h * 0.04);
+    ctx.lineTo(handX + w * 0.35, handY + h * 0.02);
+    ctx.stroke();
+  }
+}
+
+function drawTitan(ctx, f, color, glow, flash, pose) {
   const h = f.height;
   const w = f.width;
   const bodyH = h * 0.60;
@@ -242,11 +327,8 @@ function drawTitan(ctx, f, color, glow, flash) {
   ctx.lineTo(-w*0.10, torY - bodyH*0.55);
   ctx.closePath(); ctx.fill();
 
-  // Arms — chunky forward fists
+  // Static rear fist (behind, non-animated)
   ctx.fillStyle = darken(color, -0.05);
-  ctx.beginPath();
-  ctx.arc(w*0.55, torY - bodyH*0.55, w*0.18, 0, Math.PI*2);
-  ctx.fill();
   ctx.beginPath();
   ctx.arc(-w*0.55, torY - bodyH*0.55, w*0.18, 0, Math.PI*2);
   ctx.fill();
@@ -262,11 +344,53 @@ function drawTitan(ctx, f, color, glow, flash) {
   ctx.fillStyle = '#ffe27a';
   ctx.fillRect(-headR*0.75, headY - 2, headR*1.5, 6);
 
+  // Dynamic forward fist — pulls back on windup, drives forward on strike
+  drawArmTitan(ctx, f, pose, color);
+
   ctx.restore();
   if (flash) overlayFlash(ctx, f);
 }
 
-function drawWraith(ctx, f, color, glow, flash) {
+function drawArmTitan(ctx, f, pose, color) {
+  const w = f.width, h = f.height;
+  const shoulderX = w * 0.18;
+  const shoulderY = -h * 0.72;
+  if (!pose.attacking) {
+    ctx.fillStyle = darken(color, -0.05);
+    ctx.beginPath();
+    ctx.arc(w * 0.55, -h * 0.55, w * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  const handX = shoulderX + pose.armReach * w * 1.2;
+  const handY = pose.armY * h + (pose.isHeavy ? -h*0.03 : 0);
+  // Arm segment — thick
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w * 0.28;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(shoulderX, shoulderY);
+  ctx.lineTo(handX, handY);
+  ctx.stroke();
+  // Fist
+  const fistR = w * (pose.isHeavy ? 0.30 : 0.22);
+  ctx.fillStyle = darken(color, -0.08);
+  ctx.beginPath();
+  ctx.arc(handX, handY, fistR, 0, Math.PI * 2);
+  ctx.fill();
+  // Knuckle plate accent
+  ctx.fillStyle = f.char.accent;
+  ctx.fillRect(handX - fistR*0.5, handY - fistR*0.3, fistR*1.0, fistR*0.6);
+  // Impact star on active
+  if (pose.phase === 'active') {
+    ctx.fillStyle = 'rgba(255,220,120,0.85)';
+    ctx.beginPath();
+    ctx.arc(handX + fistR * 0.8, handY, fistR * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawWraith(ctx, f, color, glow, flash, pose) {
   const h = f.height;
   const w = f.width;
   const bodyH = h * 0.65;
@@ -319,15 +443,87 @@ function drawWraith(ctx, f, color, glow, flash) {
   ctx.fillStyle = '#ffb3ff';
   ctx.fillRect(-headR*0.5, headY - 2, headR*1.0, 5);
 
+  // Dynamic ghost blade
+  drawArmWraith(ctx, f, pose, color);
+
   ctx.restore();
   if (flash) overlayFlash(ctx, f);
+}
+
+function drawArmWraith(ctx, f, pose, color) {
+  const w = f.width, h = f.height;
+  if (!pose.attacking) return;
+  const shoulderX = w * 0.10;
+  const shoulderY = -h * 0.70;
+  const handX = shoulderX + pose.armReach * w * 1.15;
+  const handY = pose.armY * h;
+  // Ghostly arm
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w * 0.14;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(shoulderX, shoulderY);
+  ctx.lineTo(handX, handY);
+  ctx.stroke();
+  // Blade — narrow curved shape, longer on heavy
+  ctx.save();
+  ctx.translate(handX, handY);
+  const bladeL = w * (pose.isHeavy ? 0.60 : 0.45);
+  const bladeW = w * (pose.isHeavy ? 0.16 : 0.12);
+  ctx.fillStyle = pose.phase === 'active' ? '#ffb3ff' : color;
+  ctx.shadowColor = '#ffb3ff';
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.moveTo(0, -bladeW/2);
+  ctx.lineTo(bladeL, -bladeW * 0.15);
+  ctx.lineTo(bladeL * 0.9, bladeW * 0.5);
+  ctx.lineTo(0, bladeW/2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 function overlayFlash(ctx, f) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  ctx.fillStyle = `rgba(255,255,255,${Math.min(0.7, f.flashT * 4)})`;
-  ctx.fillRect(-f.width/2 - 4, -f.height - 6, f.width + 8, f.height + 12);
+  ctx.fillStyle = `rgba(255,255,255,${Math.min(0.85, f.flashT * 4)})`;
+  ctx.fillRect(-f.width/2 - 6, -f.height - 10, f.width + 12, f.height + 20);
+  ctx.restore();
+}
+
+// Guard-shield glyph drawn in front of a blocking fighter.
+// Bright expanding pulse whenever a hit is just blocked (blockFlashT > 0).
+function drawBlockShield(ctx, f) {
+  const sx = f.x + f.facing * (f.width * 0.35);
+  const sy = f.y - f.height * 0.55;
+  const pulse = f.blockFlashT > 0 ? f.blockFlashT / 0.24 : 0;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const alpha = 0.55 + pulse * 0.4;
+  const radius = 34 + pulse * 16;
+  ctx.strokeStyle = `rgba(160, 220, 255, ${alpha})`;
+  ctx.lineWidth = 3 + pulse * 3;
+  ctx.beginPath();
+  const start = f.facing > 0 ? -Math.PI * 0.55 : Math.PI * 0.45;
+  const end   = f.facing > 0 ? Math.PI * 0.55  : Math.PI * 1.55;
+  ctx.arc(sx, sy, radius, start, end);
+  ctx.stroke();
+  // Inner arc
+  ctx.strokeStyle = `rgba(255,255,255, ${0.5 + pulse * 0.4})`;
+  ctx.lineWidth = 1.5 + pulse * 2;
+  ctx.beginPath();
+  ctx.arc(sx, sy, Math.max(10, radius - 8), start, end);
+  ctx.stroke();
+  // Radial clank-pulse
+  if (pulse > 0) {
+    const grad = ctx.createRadialGradient(sx, sy, radius * 0.5, sx, sy, radius * 1.9);
+    grad.addColorStop(0, `rgba(180, 230, 255, ${pulse * 0.55})`);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(sx, sy, radius * 1.9, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -347,35 +543,23 @@ function darken(hex, amount) {
 
 function drawAttackFx(ctx, f) {
   if (!f.attack) return;
-  const a = f.attack;
-  if (a.phase !== 'active') {
-    // Windup tell — small glow at hand
-    ctx.save();
-    ctx.globalAlpha = 0.6;
-    ctx.fillStyle = a.type === 'heavy' ? '#ff5a5a' : a.type === 'special' ? '#ffdc4a' : '#ffffff';
-    const hbX = f.x + f.facing * (f.width/2 + 20);
-    const hbY = f.y - f.height * 0.55;
-    ctx.beginPath();
-    ctx.arc(hbX, hbY, 8, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-    return;
-  }
-  // Active — bright arc slash
+  // Windup is telegraphed by the arm pose now — no small circle overlay.
+  if (f.attack.phase !== 'active') return;
   const hb = f.getActiveHitbox();
   if (!hb) return;
   const cx = hb.x + hb.w/2;
   const cy = hb.y + hb.h/2;
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  const color = a.type === 'heavy' ? '#ff6b6b' :
-                a.type === 'special' ? f.char.trail : '#ffffff';
-  const rGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(hb.w, hb.h)*0.6);
+  const color = f.attack.type === 'heavy'   ? '#ff6b6b'
+              : f.attack.type === 'special' ? f.char.trail
+              :                                '#ffffff';
+  const rGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(hb.w, hb.h)*0.65);
   rGrad.addColorStop(0, color);
   rGrad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = rGrad;
   ctx.beginPath();
-  ctx.ellipse(cx, cy, hb.w*0.55, hb.h*0.55, 0, 0, Math.PI*2);
+  ctx.ellipse(cx, cy, hb.w*0.6, hb.h*0.6, 0, 0, Math.PI*2);
   ctx.fill();
   ctx.restore();
 }
@@ -388,34 +572,39 @@ function drawSpecialFxBehind(ctx, f) {
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < fx.trail.length; i++) {
       const p = fx.trail[i];
-      const a = (i / fx.trail.length) * 0.7;
-      ctx.fillStyle = `rgba(120, 200, 255, ${a})`;
+      const a = (i / fx.trail.length) * 0.85;
+      const rad = 38 + i * 2.2;
+      const grad = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, rad);
+      grad.addColorStop(0, `rgba(255, 235, 120, ${a})`);
+      grad.addColorStop(0.55, `rgba(120, 200, 255, ${a * 0.5})`);
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 18 + i*1.5, 0, Math.PI*2);
+      ctx.arc(p.x, p.y, rad, 0, Math.PI*2);
       ctx.fill();
     }
-    // Lightning bolt lines
-    ctx.strokeStyle = 'rgba(255, 255, 120, 0.7)';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < fx.trail.length - 1; i++) {
+    // Lightning zigzag along trail
+    ctx.strokeStyle = 'rgba(255, 255, 150, 0.9)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i < fx.trail.length; i++) {
       const p = fx.trail[i];
-      const q = fx.trail[i+1];
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-      const midY = (p.y + q.y)/2 + (Math.random() - 0.5) * 12;
-      ctx.lineTo((p.x+q.x)/2, midY);
-      ctx.lineTo(q.x, q.y);
-      ctx.stroke();
+      const jitter = (i % 2 === 0 ? 1 : -1) * 8;
+      if (i === 0) ctx.moveTo(p.x, p.y + jitter);
+      else         ctx.lineTo(p.x, p.y + jitter);
     }
+    ctx.stroke();
     ctx.restore();
   }
   if (fx.kind === 'teleport' && fx.pre && fx.phase === 'strike') {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    // Vanishing wisp at original position
-    ctx.fillStyle = 'rgba(180, 100, 255, 0.4)';
+    const grad = ctx.createRadialGradient(fx.pre.x, fx.pre.y - f.height/2, 4, fx.pre.x, fx.pre.y - f.height/2, 60);
+    grad.addColorStop(0, 'rgba(220, 150, 255, 0.7)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(fx.pre.x, fx.pre.y - 60, 30, 0, Math.PI*2);
+    ctx.arc(fx.pre.x, fx.pre.y - f.height/2, 60, 0, Math.PI*2);
     ctx.fill();
     ctx.restore();
   }
@@ -424,35 +613,51 @@ function drawSpecialFxBehind(ctx, f) {
 function drawSpecialFxFront(ctx, f) {
   if (!f.specialFx) return;
   const fx = f.specialFx;
-  if (fx.kind === 'slam' && fx.shockwave > 0 && f.onGround) {
+  if (fx.kind === 'slam' && fx.shockwave > 0) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const r = fx.shockwave * 140;
-    const grad = ctx.createRadialGradient(f.x, f.y - 4, r*0.4, f.x, f.y - 4, r);
-    grad.addColorStop(0, 'rgba(255, 180, 100, 0.6)');
-    grad.addColorStop(1, 'rgba(255, 180, 100, 0)');
+    const r = fx.shockwave * 220;
+    const grad = ctx.createRadialGradient(f.x, ARENA.groundY - 4, r*0.35, f.x, ARENA.groundY - 4, r);
+    grad.addColorStop(0, 'rgba(255, 200, 100, 0.75)');
+    grad.addColorStop(0.6, 'rgba(255, 140, 60, 0.35)');
+    grad.addColorStop(1, 'rgba(255, 100, 40, 0)');
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.ellipse(f.x, f.y - 4, r, r*0.35, 0, 0, Math.PI*2);
+    ctx.ellipse(f.x, ARENA.groundY - 4, r, r*0.35, 0, 0, Math.PI*2);
     ctx.fill();
-    // Ring
-    ctx.strokeStyle = `rgba(255, 220, 140, ${1 - fx.shockwave})`;
-    ctx.lineWidth = 3;
+    // Outer expanding ring
+    ctx.strokeStyle = `rgba(255, 230, 160, ${Math.max(0, 1 - fx.shockwave * 0.6)})`;
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.ellipse(f.x, f.y - 4, r, r*0.35, 0, 0, Math.PI*2);
+    ctx.ellipse(f.x, ARENA.groundY - 4, r, r*0.35, 0, 0, Math.PI*2);
+    ctx.stroke();
+    // Inner ring
+    ctx.strokeStyle = `rgba(255, 255, 200, ${Math.max(0, 0.8 - fx.shockwave * 0.5)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(f.x, ARENA.groundY - 4, r * 0.65, r * 0.22, 0, 0, Math.PI*2);
     ctx.stroke();
     ctx.restore();
   }
   if (fx.kind === 'teleport' && fx.phase === 'strike' && fx.postAt) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const grad = ctx.createRadialGradient(fx.postAt.x, fx.postAt.y - 60, 5, fx.postAt.x, fx.postAt.y - 60, 60);
-    grad.addColorStop(0, 'rgba(220,150,255,0.8)');
-    grad.addColorStop(1, 'rgba(220,150,255,0)');
+    // Big purple arrival flash
+    const grad = ctx.createRadialGradient(fx.postAt.x, fx.postAt.y - f.height/2, 5, fx.postAt.x, fx.postAt.y - f.height/2, 100);
+    grad.addColorStop(0, 'rgba(230, 160, 255, 0.85)');
+    grad.addColorStop(0.5, 'rgba(150, 80, 220, 0.4)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(fx.postAt.x, fx.postAt.y - 60, 60, 0, Math.PI*2);
+    ctx.arc(fx.postAt.x, fx.postAt.y - f.height/2, 100, 0, Math.PI*2);
     ctx.fill();
+    // Diagonal slash line
+    ctx.strokeStyle = 'rgba(255, 220, 255, 0.9)';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(fx.postAt.x - f.facing * 40, fx.postAt.y - f.height * 0.20);
+    ctx.lineTo(fx.postAt.x + f.facing * 60, fx.postAt.y - f.height * 0.80);
+    ctx.stroke();
     ctx.restore();
   }
 }

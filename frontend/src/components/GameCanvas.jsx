@@ -3,8 +3,6 @@ import { GameEngine } from '../game/engine.js';
 import { ARENA } from '../game/constants.js';
 import ControlsOverlay from './ControlsOverlay.jsx';
 
-// Renders the canvas + HUD overlay. React state mirrors engine state via onStateChange.
-
 export default function GameCanvas({ playerCharId, aiCharId, onExit }) {
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
@@ -106,6 +104,17 @@ function FighterBar({ side, data, testid }) {
   const pct = Math.max(0, (data.hp / data.maxHp) * 100);
   const cdPct = data.specialMax > 0 ? (1 - data.specialCd / data.specialMax) * 100 : 100;
   const ready = data.specialCd <= 0;
+  const prevReady = useRef(true);
+  const [flashing, setFlashing] = useState(false);
+  useEffect(() => {
+    if (prevReady.current && !ready) {
+      setFlashing(true);
+      const t = setTimeout(() => setFlashing(false), 700);
+      prevReady.current = ready;
+      return () => clearTimeout(t);
+    }
+    prevReady.current = ready;
+  }, [ready]);
   return (
     <div className={`brawl-fighter-hud ${side}`} data-testid={testid}>
       <div className="brawl-fighter-name" data-testid={`${testid}-name`}>{data.name}</div>
@@ -115,7 +124,10 @@ function FighterBar({ side, data, testid }) {
       <div className="brawl-hp-num" data-testid={`${testid}-hp-num`}>
         {Math.max(0, Math.ceil(data.hp))} / {data.maxHp}
       </div>
-      <div className={`brawl-special ${ready ? 'ready' : ''}`} data-testid={`${testid}-special`}>
+      <div
+        className={`brawl-special ${ready ? 'ready' : ''} ${flashing ? 'just-used' : ''}`}
+        data-testid={`${testid}-special`}
+      >
         <span className="brawl-special-label">SPECIAL</span>
         <div className="brawl-special-track">
           <div className="brawl-special-fill" style={{ width: `${cdPct}%` }} />

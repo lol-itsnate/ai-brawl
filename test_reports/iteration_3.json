@@ -1,0 +1,25 @@
+{
+  "summary": "AI BRAWL Phase 2 bug-fix pass regression. Backend 3/3 pytest pass. Frontend Playwright verified all 4 bug fixes + regressions: (1) Sky-launch fix — after 10s idle vs TITAN AI, VOLT HP dropped from 80 to 0 proving fighter remained in arena and AI landed hits (no runaway/off-screen); (2) Specials fire on L for all 3 characters — VOLT cd=4.3s (spec 4.5s), TITAN cd=5.3s (spec 5.5s, class='just-used' captured), WRAITH cd=4.8s (spec 5.0s); (3) Block reduces damage — 6s of holding S caused 7 HP loss vs 38 HP loss without block (>5x reduction); (4) Jump W + land + light attack J flow works (physics regression clean); Regressions: select screen STEP 1/STEP 2 + FIGHT-disabled gating + controls modal ESC-close all work; new matchup TITAN vs WRAITH shows 140/140 & 100/100; small-viewport gate at 600px correctly shows 'BEST PLAYED ON DESKTOP' message.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "GameCanvas", "issues": ["Recurring Canvas2D willReadFrequently perf warning (carried over from iter 1/2). Fix: canvas.getContext('2d', { willReadFrequently: true }) in renderer.js."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_backend.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Specials require canAct() (no hitstun + no active attack) AND onGround (fighter.js:68). When testing TITAN vs VOLT, VOLT AI closes fast and can put TITAN in hitstun before player can press L — first 4 L presses in test were dropped due to hitstun before landing on attempt #5. This is by-design, not a bug, but explains any test flakiness when the AI is faster than the player character.",
+    "HUD 'just-used' class window (~700ms) works but is race-sensitive to Playwright poll timing. Captured on TITAN run (class='brawl-special  just-used') confirming the CSS transition fires.",
+    "Canvas2D willReadFrequently warning still present — cheap 1-line fix in renderer.js getContext call."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None",
+  "test_credentials": "None — public game, no auth.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 4 Phase-2 bug fixes verified. When testing specials, be aware that TITAN (slow/heavy) may need 2-5 L presses to fire vs an aggressive AI opponent because incoming hits induce hitstun that blocks startAttack; this is not a regression — retry loop resolves it. Prefer VOLT or WRAITH as player if you need a first-frame special guarantee for HUD flash timing. Cooldowns observed slightly below spec (e.g., 4.3 vs 4.5) simply reflect elapsed real-time between keydown and DOM read (~200ms)."
+}

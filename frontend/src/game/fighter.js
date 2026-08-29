@@ -24,6 +24,7 @@ export class Fighter {
     this.attack = null;   // { type:'light'|'heavy'|'special', phase, t, def, hitTargets:Set }
     this.hitstunT = 0;
     this.flashT = 0;      // brief hit flash timer (visual only)
+    this.blockFlashT = 0; // brief guard-pulse when a hit was blocked
 
     // Cooldowns (seconds remaining)
     this.cooldowns = { light: 0, heavy: 0, special: 0 };
@@ -86,13 +87,13 @@ export class Fighter {
       const s = this.char.special;
       if (s.kind === 'dash') {
         this.vx = this.facing * s.dashSpeed;
-        this.specialFx = { kind: 'dash', trail: [] };
+        this.specialFx = { kind: 'dash', trail: [], justStarted: true };
       } else if (s.kind === 'slam') {
         this.vy = s.liftVelocity;
         this.onGround = false;
-        this.specialFx = { kind: 'slam', shockwave: 0 };
+        this.specialFx = { kind: 'slam', shockwave: 0, justStarted: true };
       } else if (s.kind === 'teleport') {
-        this.specialFx = { kind: 'teleport', phase: 'vanish', pre: {x:this.x, y:this.y} };
+        this.specialFx = { kind: 'teleport', phase: 'vanish', pre: {x:this.x, y:this.y}, justStarted: true };
       }
     }
     return true;
@@ -103,17 +104,27 @@ export class Fighter {
     if (this.blocking && this.onGround) {
       this.hp -= def.damage * 0.20;
       this.vx += Math.sign(attacker.facing) * def.knockback * 0.15;
+      this.vy = 0;                // blocking cancels any vertical launch
       this.flashT = 0.10;
+      this.blockFlashT = 0.24;    // triggers guard-pulse render + spark burst
     } else {
       this.hp -= def.damage;
       this.vx = Math.sign(attacker.facing) * def.knockback;
-      // small pop-up on heavy/special
-      if (def.knockback > 300) this.vy = -180;
+      // Small vertical pop — ONLY if grounded, so airborne victims don't relaunch.
+      // (Previously this set vy without setting onGround=false, so gravity never applied
+      //  and chained hits pushed the fighter off the top of the arena.)
+      if (def.knockback > 300 && this.onGround) {
+        this.vy = -180;
+        this.onGround = false;
+      }
+      // Hard safety cap on upward velocity from any source.
+      if (this.vy < -260) this.vy = -260;
       this.hitstunT = hitStunOverride ?? def.hitstun;
       this.state = 'hitstun';
       // Cancel own attack
       this.attack = null;
-      this.flashT = 0.16;
+      this.specialFx = null;
+      this.flashT = 0.22;
     }
     if (this.hp < 0) this.hp = 0;
   }
@@ -126,6 +137,7 @@ export class Fighter {
       if (this.cooldowns[k] > 0) this.cooldowns[k] = Math.max(0, this.cooldowns[k] - dt);
     }
     if (this.flashT > 0) this.flashT = Math.max(0, this.flashT - dt);
+    if (this.blockFlashT > 0) this.blockFlashT = Math.max(0, this.blockFlashT - dt);
 
     // Face opponent (only when not attacking; keeps swings consistent)
     if (!this.attack && this.hitstunT <= 0) {
@@ -188,11 +200,12 @@ export class Fighter {
           this.facing = opponent.x >= this.x ? 1 : -1;
           this.specialFx.phase = 'strike';
           this.specialFx.postAt = { x: this.x, y: this.y };
+          this.specialFx.arrivalBurstPending = true;
         }
-        if (s.kind === 'slam') {
-          // shockwave marker grows during active
-          if (a.phase === 'active' && this.onGround && this.specialFx) {
-            this.specialFx.shockwave = Math.min(1, this.specialFx.shockwave + dt * 4);
+        if (s.kind === 'slam' && this.specialFx) {
+          // Shockwave grows while grounded during active AND recovery so the ring lingers.
+          if (this.onGround && (a.phase === 'active' || a.phase === 'recovery')) {
+            this.specialFx.shockwave = Math.min(1, this.specialFx.shockwave + dt * 3);
           }
         }
       }
@@ -234,18 +247,22 @@ export class Fighter {
     this.x += this.vx * dt;
     this.y += this.vy * dt;
 
-    // Ground collision
+    // Ground collision + airborne state sync
     if (this.y >= ARENA.groundY) {
       this.y = ARENA.groundY;
       this.vy = 0;
-      if (!this.onGround) {
-        this.onGround = true;
-        // Land during slam active — trigger shockwave visual
-        if (this.attack?.type === 'special' && this.char.special.kind === 'slam' && this.attack.phase === 'startup') {
-          // slam windup can transition to active on land
-        }
-        if (this.state === 'jump') this.state = 'idle';
-      }
+      this.onGround = true;
+      if (this.state === 'jump') this.state = this.hitstunT > 0 ? 'hitstun' : 'idle';
+    } else {
+      // Above ground → mark airborne so gravity keeps applying next frame.
+      // (Fixes: hits used to pop vy without setting onGround=false, so gravity
+      // wouldn't apply and fighters launched to the sky on combos.)
+      this.onGround = false;
+    }
+    // Hard ceiling — fighter can never leave the visible arena
+    if (this.y < 120) {
+      this.y = 120;
+      if (this.vy < 0) this.vy = 0;
     }
 
     // Arena bounds

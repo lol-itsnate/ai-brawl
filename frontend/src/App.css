@@ -442,6 +442,25 @@
   text-shadow: 0 0 8px rgba(255, 225, 74, 0.85);
 }
 
+.brawl-special {
+  position: relative;
+}
+
+.brawl-special.just-used {
+  animation: specialUsedPulse 0.7s ease-out;
+}
+
+.brawl-special.just-used .brawl-special-val {
+  color: var(--neon-pink);
+  text-shadow: 0 0 12px rgba(255, 60, 140, 0.9);
+}
+
+@keyframes specialUsedPulse {
+  0%   { transform: scale(1);    filter: brightness(1); }
+  20%  { transform: scale(1.08); filter: brightness(1.6); }
+  100% { transform: scale(1);    filter: brightness(1); }
+}
+
 .brawl-timer {
   font-family: 'Rubik Mono One', 'Bungee', sans-serif;
   font-size: 3.6rem;
