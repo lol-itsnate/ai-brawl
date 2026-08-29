@@ -80,6 +80,10 @@ async def get_status_checks():
 # Include the router in the main app
 app.include_router(api_router)
 
+# Fighter Forge — LLM-driven fighter generation (Phase F1, backend only)
+from forge import router as forge_router  # noqa: E402
+app.include_router(forge_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
