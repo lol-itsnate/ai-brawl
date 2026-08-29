@@ -28,7 +28,7 @@ export const CHARACTERS = {
     maxHp: 80,
     moveSpeed: 340,
     body: { ...base, bodyW: 52, bodyH: 118 },
-    light: { startup: 0.06, active: 0.08, recovery: 0.20, damage: 7,  reach: 70,  hbW: 55, hbH: 42, knockback: 140, hitstun: 0.22 },
+    light: { startup: 0.06, active: 0.08, recovery: 0.10, damage: 7,  reach: 70,  hbW: 55, hbH: 42, knockback: 140, hitstun: 0.22 },
     heavy: { startup: 0.28, active: 0.10, recovery: 0.42, damage: 14, reach: 82,  hbW: 70, hbH: 55, knockback: 320, hitstun: 0.38 },
     special: {
       kind: 'dash',
@@ -48,7 +48,7 @@ export const CHARACTERS = {
     maxHp: 140,
     moveSpeed: 210,
     body: { ...base, bodyW: 78, bodyH: 128 },
-    light: { startup: 0.09, active: 0.09, recovery: 0.26, damage: 8,  reach: 68, hbW: 60, hbH: 46, knockback: 160, hitstun: 0.24 },
+    light: { startup: 0.09, active: 0.09, recovery: 0.14, damage: 8,  reach: 68, hbW: 60, hbH: 46, knockback: 160, hitstun: 0.24 },
     heavy: { startup: 0.40, active: 0.12, recovery: 0.50, damage: 20, reach: 78, hbW: 78, hbH: 62, knockback: 420, hitstun: 0.42 },
     special: {
       kind: 'slam',
@@ -68,7 +68,7 @@ export const CHARACTERS = {
     maxHp: 100,
     moveSpeed: 290,
     body: { ...base, bodyW: 50, bodyH: 122 },
-    light: { startup: 0.07, active: 0.08, recovery: 0.22, damage: 7,  reach: 72, hbW: 58, hbH: 44, knockback: 150, hitstun: 0.22 },
+    light: { startup: 0.07, active: 0.08, recovery: 0.11, damage: 7,  reach: 72, hbW: 58, hbH: 44, knockback: 150, hitstun: 0.22 },
     heavy: { startup: 0.32, active: 0.10, recovery: 0.44, damage: 16, reach: 76, hbW: 72, hbH: 58, knockback: 340, hitstun: 0.38 },
     special: {
       kind: 'teleport',

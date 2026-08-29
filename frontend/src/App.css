@@ -390,17 +390,47 @@
   border-radius: 3px;
   overflow: hidden;
   position: relative;
+  transition: box-shadow 0.3s ease;
+}
+
+/* Ghost/damage-lag bar — lags behind the fill so damage taken shows as a bright trail */
+.brawl-hp-ghost {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  background: rgba(255, 90, 130, 0.85);
+  box-shadow: inset 0 0 8px rgba(255,255,255,0.4);
+  transition: width 0.55s cubic-bezier(0.3, 0.9, 0.4, 1) 0.18s;
+  will-change: width;
+}
+.brawl-fighter-hud.right .brawl-hp-ghost {
+  left: auto; right: 0;
 }
 
 .brawl-hp-fill {
   height: 100%;
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
   background: linear-gradient(90deg, #ff4a4a 0%, #ffbd3d 45%, #4ff08a 100%);
   box-shadow: inset 0 0 12px rgba(255,255,255,0.25), 0 0 12px rgba(255, 80, 130, 0.35);
-  transition: width 0.12s linear;
+  transition: width 0.08s linear;
 }
 
 .brawl-fighter-hud.right .brawl-hp-fill {
   background: linear-gradient(270deg, #ff4a4a 0%, #ffbd3d 45%, #4ff08a 100%);
+  left: auto; right: 0;
+}
+
+/* Low-HP pulse (<25% HP) — draws attention */
+.brawl-fighter-hud.low-hp .brawl-hp-track {
+  animation: lowHpPulse 0.85s ease-in-out infinite;
+}
+@keyframes lowHpPulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(255, 70, 70, 0.4); }
+  50%      { box-shadow: 0 0 22px rgba(255, 70, 70, 0.9); }
+}
+.brawl-fighter-hud.low-hp .brawl-hp-num {
+  color: #ff8a8a;
+  text-shadow: 0 0 8px rgba(255, 90, 90, 0.7);
 }
 
 .brawl-hp-num {
@@ -473,6 +503,17 @@
   background: rgba(0,0,0,0.45);
   min-width: 140px;
   text-align: center;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.brawl-timer.urgent {
+  color: var(--neon-pink);
+  border-color: rgba(255, 60, 140, 0.75);
+  animation: timerUrgent 0.55s ease-in-out infinite;
+}
+@keyframes timerUrgent {
+  0%, 100% { transform: scale(1);    text-shadow: 0 0 22px rgba(255, 60, 140, 0.55); }
+  50%      { transform: scale(1.10); text-shadow: 0 0 34px rgba(255, 60, 140, 0.95); }
 }
 
 /* ============ CANVAS ============ */
@@ -592,6 +633,36 @@
   .brawl-vs { padding: 8px 0; }
   .brawl-timer { font-size: 2.4rem; min-width: 100px; }
   .brawl-fighter-name { font-size: 1rem; }
+}
+
+/* ============ K.O. / TIME UP BANNER ============ */
+
+.brawl-ko-banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 7;
+}
+
+.brawl-ko-label {
+  font-family: 'Bungee Inline', 'Bungee', sans-serif;
+  font-size: clamp(4rem, 12vw, 9rem);
+  letter-spacing: 8px;
+  line-height: 1;
+  color: var(--neon-pink);
+  text-shadow:
+    0 0 26px rgba(255, 60, 140, 0.95),
+    0 0 60px rgba(255, 90, 170, 0.55);
+  animation: koPop 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes koPop {
+  0%   { transform: scale(0.35) rotate(-8deg); opacity: 0; }
+  40%  { transform: scale(1.30) rotate(0deg);  opacity: 1; }
+  100% { transform: scale(1.15) rotate(0deg);  opacity: 1; }
 }
 
 /* ============ INTRO OVERLAY (READY / FIGHT!) ============ */

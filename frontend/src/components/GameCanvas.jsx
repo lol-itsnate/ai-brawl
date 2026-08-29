@@ -54,6 +54,10 @@ export default function GameCanvas({ playerCharId, aiCharId, onExit }) {
           <IntroOverlay introT={snap.introT} />
         )}
 
+        {snap?.phase === 'ko' && (
+          <KoBanner cause={snap.koCause} />
+        )}
+
         {snap?.phase === 'ended' && (
           <ResultOverlay snap={snap} onRestart={handleRestart} onExit={onExit} />
         )}
@@ -75,7 +79,10 @@ function TopHud({ snap, onOpenControls, onExit }) {
     <div className="brawl-hud" data-testid="hud">
       <FighterBar side="left" data={player} testid="player-hud" />
       <div className="brawl-timer-col">
-        <div className="brawl-timer" data-testid="round-timer">
+        <div
+          className={`brawl-timer ${time <= 10 ? 'urgent' : ''}`}
+          data-testid="round-timer"
+        >
           {Math.ceil(time).toString().padStart(2, '0')}
         </div>
         <div className="brawl-topbar-actions">
@@ -104,6 +111,7 @@ function FighterBar({ side, data, testid }) {
   const pct = Math.max(0, (data.hp / data.maxHp) * 100);
   const cdPct = data.specialMax > 0 ? (1 - data.specialCd / data.specialMax) * 100 : 100;
   const ready = data.specialCd <= 0;
+  const lowHp = pct < 25 && pct > 0;
   const prevReady = useRef(true);
   const [flashing, setFlashing] = useState(false);
   useEffect(() => {
@@ -116,9 +124,11 @@ function FighterBar({ side, data, testid }) {
     prevReady.current = ready;
   }, [ready]);
   return (
-    <div className={`brawl-fighter-hud ${side}`} data-testid={testid}>
+    <div className={`brawl-fighter-hud ${side} ${lowHp ? 'low-hp' : ''}`} data-testid={testid}>
       <div className="brawl-fighter-name" data-testid={`${testid}-name`}>{data.name}</div>
       <div className="brawl-hp-track" aria-hidden>
+        {/* Delayed ghost bar — CSS transition lags behind the actual HP */}
+        <div className="brawl-hp-ghost" style={{ width: `${pct}%` }} data-testid={`${testid}-hp-ghost`} />
         <div className="brawl-hp-fill" style={{ width: `${pct}%` }} data-testid={`${testid}-hp-fill`} />
       </div>
       <div className="brawl-hp-num" data-testid={`${testid}-hp-num`}>
@@ -136,6 +146,15 @@ function FighterBar({ side, data, testid }) {
           {ready ? 'READY' : `${data.specialCd.toFixed(1)}s`}
         </span>
       </div>
+    </div>
+  );
+}
+
+function KoBanner({ cause }) {
+  const label = cause === 'timeup' ? 'TIME UP' : 'K.O.!';
+  return (
+    <div className="brawl-ko-banner" data-testid="ko-banner">
+      <div className="brawl-ko-label" data-testid="ko-banner-label">{label}</div>
     </div>
   );
 }

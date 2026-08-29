@@ -22,6 +22,9 @@ export function renderScene(ctx, engine) {
   // Particles overlaid on scene
   if (engine.particles) engine.particles.draw(ctx);
 
+  // Floating damage numbers — drawn above particles so they're always readable
+  if (engine.damageNumbers) engine.damageNumbers.draw(ctx);
+
   // KO flash overlay — brief white pop
   if (engine.koFlashT > 0) {
     ctx.save();
@@ -142,9 +145,13 @@ function drawFighter(ctx, f) {
   const flash = f.flashT > 0;
   const pose = computeAttackPose(f);
 
+  // Small backwards recoil on hitstun for a readable "flinch" pose
+  const flinchX = f.hitstunT > 0 ? -f.facing * 3 : 0;
+  const flinchY = f.hitstunT > 0 ? -1 : 0;
+
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.translate(cx, feetY);
+  ctx.translate(cx + flinchX, feetY + flinchY);
   ctx.scale(f.facing, 1);
   if (char.id === 'volt')       drawVolt(ctx, f, primary, glow, flash, pose);
   else if (char.id === 'titan') drawTitan(ctx, f, primary, glow, flash, pose);

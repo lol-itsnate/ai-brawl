@@ -214,15 +214,19 @@ export class Fighter {
     // Movement input (only if actionable and not attacking non-dash)
     const canMove = this.canAct() && !this.blocking;
     if (canMove) {
-      if (intent.moveDir !== 0) {
-        this.vx = intent.moveDir * this.char.moveSpeed;
-        if (this.onGround) this.state = 'walk';
-      } else if (this.onGround) {
-        // decelerate
-        this.vx -= this.vx * Math.min(1, PHYSICS.friction * dt);
-        if (Math.abs(this.vx) < 5) this.vx = 0;
-        this.state = 'idle';
+      const target = intent.moveDir * this.char.moveSpeed;
+      // Direction reversal — snap current velocity to zero so reversals feel immediate
+      if (target !== 0 && this.vx !== 0 && Math.sign(target) !== Math.sign(this.vx)) {
+        this.vx = 0;
       }
+      // Ramp toward target (~100ms to full speed or full stop) — momentum feel
+      const rampTime = 0.10;
+      const accel = this.char.moveSpeed / rampTime;
+      const delta = target - this.vx;
+      const step = Math.sign(delta) * Math.min(Math.abs(delta), accel * dt);
+      this.vx += step;
+      if (target === 0 && Math.abs(this.vx) < 4) this.vx = 0;
+      if (this.onGround) this.state = intent.moveDir !== 0 ? 'walk' : 'idle';
       if (intent.jumpPressed && this.onGround) {
         this.vy = PHYSICS.jumpVelocity;
         this.onGround = false;

@@ -5,10 +5,16 @@ import { getCharacter } from './characters.js';
 import { InputManager } from './input.js';
 import { renderScene } from './renderer.js';
 import { ParticleSystem } from './particles.js';
+import { DamageNumbers } from './damageNumbers.js';
 
 // Fight lifecycle timings
 const INTRO_DURATION = 1.8;   // "READY" (~1.0s) then "FIGHT!" (~0.8s)
 const KO_DURATION    = 0.75;  // brief slow-mo before result overlay
+
+// Hit-stop (freeze-frame) durations
+const FREEZE_HEAVY_HIT   = 0.075; // 75ms
+const FREEZE_SPECIAL_HIT = 0.090; // 90ms
+const FREEZE_BLOCKED_HVY = 0.040; // 40ms — shorter for blocked heavies
 
 function rectsOverlap(a, b) {
   return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
@@ -17,13 +23,14 @@ function rectsOverlap(a, b) {
 export class GameEngine {
   constructor({ canvas, playerCharId, aiCharId, onStateChange }) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = canvas.getContext('2d', { willReadFrequently: true });
     this.playerCharId = playerCharId;
     this.aiCharId = aiCharId;
     this.onStateChange = onStateChange || (() => {});
 
     this.input = new InputManager();
     this.particles = new ParticleSystem();
+    this.damageNumbers = new DamageNumbers();
 
     this.running = false;
     this.paused = false;             // external pause (controls overlay)
@@ -36,6 +43,7 @@ export class GameEngine {
     this.shakeT = 0;
     this.shakeMag = 0;
     this.koFlashT = 0;
+    this.freezeT = 0;           // hit-stop freeze counter (real seconds)
 
     this._buildMatch();
   }
@@ -60,14 +68,17 @@ export class GameEngine {
     //   'ended'  → frozen scene, result overlay shown
     this.phase = 'intro';
     this.status = null;              // 'win' | 'lose' | 'draw' | null
+    this.koCause = null;             // 'ko' | 'timeup' | null — reason match ended
     this.introT = INTRO_DURATION;
     this.koT = 0;
     this.pendingStatus = null;
 
     this.particles.parts.length = 0;
+    this.damageNumbers.reset();
     this.shakeT = 0;
     this.shakeMag = 0;
     this.koFlashT = 0;
+    this.freezeT = 0;
 
     this._pushEvent();
   }
@@ -78,6 +89,7 @@ export class GameEngine {
       paused: this.paused,
       introT: this.introT,
       status: this.status,
+      koCause: this.koCause,
       time: this.time,
       player: {
         name: this.player.char.name,
@@ -149,9 +161,14 @@ export class GameEngine {
     if (this._backgroundPaused || this.paused) dt = 0;
     if (dt > 0.05) dt = 0.05;
 
-    // Global timers (shake, flash) tick regardless of phase
+    // Global timers (shake, flash, hit-stop freeze) tick regardless of phase.
+    // These use real dt so shake still "vibrates" during hit-stop for a punchy impact feel.
     if (this.shakeT > 0)   this.shakeT   = Math.max(0, this.shakeT - dt);
     if (this.koFlashT > 0) this.koFlashT = Math.max(0, this.koFlashT - dt);
+    if (this.freezeT > 0)  this.freezeT  = Math.max(0, this.freezeT - dt);
+
+    // Simulation dt: frozen to 0 during a hit-stop window (freeze-frame)
+    const simDt = this.freezeT > 0 ? 0 : dt;
 
     if (this.phase === 'intro') {
       this.introT -= dt;
@@ -160,22 +177,27 @@ export class GameEngine {
         this.phase = 'active';
       }
       this.particles.update(dt);
+      this.damageNumbers.update(dt);
     } else if (this.phase === 'active') {
-      this._simulate(dt);
-      this.particles.update(dt);
+      this._simulate(simDt);
+      this.particles.update(simDt);
+      this.damageNumbers.update(simDt);
     } else if (this.phase === 'ko') {
-      // Slow-mo: entities keep resolving knockback + reactions at reduced speed
+      // Slow-mo: entities keep resolving knockback + reactions at reduced speed.
+      // If a hit-stop is active, sim is fully frozen this frame.
       const slow = 0.35;
-      this._stepEntities(dt * slow);
-      this.particles.update(dt * slow);
+      const koDt = simDt * slow;
+      this._stepEntities(koDt);
+      this.particles.update(koDt);
+      this.damageNumbers.update(koDt);
       this.koT -= dt;
       if (this.koT <= 0) {
         this.status = this.pendingStatus;
         this.phase = 'ended';
       }
     } else if (this.phase === 'ended') {
-      // Freeze scene; let particles finish
       this.particles.update(dt);
+      this.damageNumbers.update(dt);
     }
 
     renderScene(this.ctx, this);
@@ -328,6 +350,8 @@ export class GameEngine {
     }
     if (pending) {
       this.pendingStatus = pending;
+      // 'ko' when either fighter downed; 'timeup' if only time expired.
+      this.koCause = (pDown || aDown) ? 'ko' : 'timeup';
       this.phase = 'ko';
       this.koT = KO_DURATION;
       // KO emphasis: shake + flash + burst on the fallen fighter (or center on time-out draw)
@@ -376,8 +400,10 @@ export class GameEngine {
     attacker.attack.hitTargets.add(defender);
     const blocked = defender.blocking && defender.onGround;
     const def = attacker.attack.def;
+    const attackType = attacker.attack.type;
     defender.applyHit(attacker, def);
     if (aiOwnsAttack) this.aiCtrl.notifyLandedHit();
+    else              this.aiCtrl.notifyGotHit();
 
     // Screen shake proportional to damage; smaller on block
     const mag = blocked ? 3 : Math.min(12, 3.5 + def.damage * 0.45);
@@ -385,11 +411,25 @@ export class GameEngine {
     if (dur > this.shakeT) this.shakeT = dur;
     if (mag > this.shakeMag) this.shakeMag = mag;
 
+    // Hit-stop / freeze-frame — only heavies and specials (lights stay snappy)
+    if (!blocked) {
+      if      (attackType === 'heavy')   this.freezeT = Math.max(this.freezeT, FREEZE_HEAVY_HIT);
+      else if (attackType === 'special') this.freezeT = Math.max(this.freezeT, FREEZE_SPECIAL_HIT);
+    } else if (attackType === 'heavy' || attackType === 'special') {
+      this.freezeT = Math.max(this.freezeT, FREEZE_BLOCKED_HVY);
+    }
+
     // Particles at hit point
     const hx = hb.x + hb.w / 2;
     const hy = hb.y + hb.h / 2;
     const dir = Math.sign(attacker.facing);
     const coneAngle = dir > 0 ? 0 : Math.PI;
+
+    // Floating damage number
+    const dmgShown = blocked ? Math.round(def.damage * 0.20) : def.damage;
+    const dmgStyle = blocked ? 'blocked' : attackType;
+    const dmgAccent = attackType === 'special' ? attacker.char.trail : null;
+    this.damageNumbers.spawn(hx, hy, dmgShown, dmgStyle, dmgAccent);
 
     if (blocked) {
       // Block impact — clanky bright burst, wider than a hit for readability
